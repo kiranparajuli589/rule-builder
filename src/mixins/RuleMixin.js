@@ -5,12 +5,15 @@ export const RuleMixin = {
     return {
       localConditions: [],
       joinOperators: [],
+      isProcessingAutomatic: false, // Flag to prevent infinite recursion
     }
   },
   watch: {
     localConditions: {
       handler() {
-        this.checkAndApplyBrackets();
+        if (!this.isProcessingAutomatic) {
+          this.checkAndApplyBrackets();
+        }
         this.$emit('update:conditions', this.localConditions);
       },
       deep: true
@@ -31,6 +34,7 @@ export const RuleMixin = {
         this.addCondition();
       }
     },
+
     hasOnlyGroups() {
       // Check if all conditions are already groups
       return this.localConditions.length > 0 && this.localConditions.every(cond => cond.isGroup);
@@ -191,63 +195,75 @@ export const RuleMixin = {
     },
 
     checkAndApplyBrackets() {
-      // Auto-add brackets when there are more than 2 conditions with mixed operators
-      if (this.localConditions.length >= 3) {
-        const hasAnd = this.joinOperators.includes('&&');
-        const hasOr = this.joinOperators.includes('||');
+      // Set flag to prevent recursive processing
+      if (this.isProcessingAutomatic) return;
 
-        if (hasAnd && hasOr) {
-          // Find sequences that need brackets
-          for (let i = 0; i < this.joinOperators.length - 1; i++) {
-            const currentOp = this.joinOperators[i];
-            const nextOp = this.joinOperators[i + 1];
+      this.isProcessingAutomatic = true;
 
-            if (currentOp !== nextOp) {
-              // We have a mixed sequence of operators, check if we already have a group
-              if (!this.hasGroupForSequence(i, i + 2)) {
-                // Check depth limit before converting to group
-                if (RuleService.wouldExceedDepthLimit(this.localConditions)) {
-                  console.warn(`Cannot apply automatic bracketing - maximum nesting depth of ${RuleService.DEPTH_LIMIT} reached.`);
-                  return;
+      try {
+        // Auto-add brackets when there are more than 2 conditions with mixed operators
+        if (this.localConditions.length >= 3) {
+          const hasAnd = this.joinOperators.includes('&&');
+          const hasOr = this.joinOperators.includes('||');
+
+          if (hasAnd && hasOr) {
+            // Find sequences that need brackets
+            for (let i = 0; i < this.joinOperators.length - 1; i++) {
+              const currentOp = this.joinOperators[i];
+              const nextOp = this.joinOperators[i + 1];
+
+              if (currentOp !== nextOp) {
+                // We have a mixed sequence of operators, check if we already have a group
+                if (!this.hasGroupForSequence(i, i + 2)) {
+                  // Check depth limit before converting to group
+                  if (RuleService.wouldExceedDepthLimit(this.localConditions)) {
+                    console.warn(`Cannot apply automatic bracketing - maximum nesting depth of ${RuleService.DEPTH_LIMIT} reached.`);
+                    return;
+                  }
+
+                  // Create a group for these two conditions
+                  this.convertToGroup(i, i + 2);
+                  break; // Only handle one conversion at a time
                 }
-
-                // Create a group for these two conditions
-                this.convertToGroup(i, i + 2);
-                break; // Only handle one conversion at a time
               }
             }
           }
         }
-      }
 
-      // Check for unbracketed condition sequences longer than 2 and enforce bracketing
-      if (this.localConditions.length > 2) {
-        // Count number of consecutive non-grouped conditions
-        let consecutiveCount = 0;
-        let consecutiveStart = -1;
+        // Check for unbracketed condition sequences longer than 2 and enforce bracketing
+        if (this.localConditions.length > 2) {
+          // Count number of consecutive non-grouped conditions
+          let consecutiveCount = 0;
+          let consecutiveStart = -1;
 
-        for (let i = 0; i < this.localConditions.length; i++) {
-          if (!this.localConditions[i].isGroup) {
-            if (consecutiveStart === -1) {
-              consecutiveStart = i;
+          for (let i = 0; i < this.localConditions.length; i++) {
+            if (!this.localConditions[i].isGroup) {
+              if (consecutiveStart === -1) {
+                consecutiveStart = i;
+              }
+              consecutiveCount++;
+            } else {
+              // Reset counter when encountering a group
+              if (consecutiveCount > 2) {
+                // We found more than 2 consecutive non-grouped conditions
+                this.warnAboutUnbracketedConditions(consecutiveStart, consecutiveCount);
+                return;
+              }
+              consecutiveCount = 0;
+              consecutiveStart = -1;
             }
-            consecutiveCount++;
-          } else {
-            // Reset counter when encountering a group
-            if (consecutiveCount > 2) {
-              // We found more than 2 consecutive non-grouped conditions
-              this.warnAboutUnbracketedConditions(consecutiveStart, consecutiveCount);
-              return;
-            }
-            consecutiveCount = 0;
-            consecutiveStart = -1;
+          }
+
+          // Check final sequence
+          if (consecutiveCount > 2) {
+            this.warnAboutUnbracketedConditions(consecutiveStart, consecutiveCount);
           }
         }
-
-        // Check final sequence
-        if (consecutiveCount > 2) {
-          this.warnAboutUnbracketedConditions(consecutiveStart, consecutiveCount);
-        }
+      } finally {
+        // Always reset the flag when done
+        this.$nextTick(() => {
+          this.isProcessingAutomatic = false;
+        });
       }
     },
 
@@ -296,7 +312,7 @@ export const RuleMixin = {
         return;
       }
 
-      // Auto-apply bracketing without prompting
+      // Only apply bracketing if we haven't already prompted
       if (!this.hasPromptedForBracketing) {
         this.hasPromptedForBracketing = true;
 
@@ -305,8 +321,18 @@ export const RuleMixin = {
         let currentIndex = startIndex;
 
         while (remaining >= 2) {
+          // Check depth limit before each iteration
+          if (RuleService.wouldExceedDepthLimit(this.localConditions)) {
+            console.warn('Reached depth limit during auto-bracketing, stopping');
+            break;
+          }
+
           // Take two conditions at a time and group them
           const twoConditions = this.localConditions.slice(currentIndex, currentIndex + 2);
+
+          // Skip if we don't have enough conditions
+          if (twoConditions.length < 2) break;
+
           const joinOp = this.joinOperators[currentIndex] || '&&';
 
           // Create a group for these two
@@ -325,8 +351,8 @@ export const RuleMixin = {
             this.joinOperators.splice(currentIndex, 1);
           }
 
-          // Update counters
-          remaining -= 2;
+          // Update counters - only subtract 1 since we replaced 2 with 1
+          remaining -= 1;
         }
       }
     }

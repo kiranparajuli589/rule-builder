@@ -1,18 +1,19 @@
+import ConditionService from './ConditionService.js';
+
 export default {
   DEPTH_LIMIT: 2, // Maximum nesting depth allowed
-  fields: [
-    'req.uri.path',
-    'req.method',
-    'req.status',
-    'req.agent'
-  ],
-  operators: [
-    '==',
-    '!=',
-    '~~',
-    'starts_with',
-    'ends_with'
-  ],
+
+  get fields() {
+    return ConditionService.fields;
+  },
+
+  get operators() {
+    return ConditionService.operators;
+  },
+
+  get rewriteFunctions() {
+    return ConditionService.rewriteFunctions;
+  },
 
   // Improved calculateDepth method that counts the current nesting depth correctly
   calculateDepth(conditions) {
@@ -31,13 +32,10 @@ export default {
     return maxDepth;
   },
 
-  // Correctly check if an operation would exceed the depth limit
-  wouldExceedDepthLimit(conditions) {
-    // First, calculate the current maximum depth
-    const currentDepth = this.calculateDepth(conditions);
-
-    // Adding a new nesting level would exceed the limit if we're already at the limit
-    return currentDepth >= this.DEPTH_LIMIT;
+  // Check if adding a group at the given location would exceed the depth limit
+  wouldExceedDepthLimit(conditions, nestingLevel = 0) {
+    // If we're already at the limit, adding more would exceed it
+    return nestingLevel + this.calculateDepth(conditions) >= this.DEPTH_LIMIT;
   },
 
   // Find and report the deepest group in a rule
@@ -65,7 +63,7 @@ export default {
     return deepestPath;
   },
 
-  // New method to enforce the depth limit on an existing rule
+  // New method to enforce the depth limit on an existing rule - now safer
   enforceDepthLimit(rule) {
     if (!rule || !rule.create_pattern || !rule.create_pattern.conditions) {
       return rule;
@@ -73,9 +71,11 @@ export default {
 
     // Make a copy to avoid modifying the original
     const ruleCopy = JSON.parse(JSON.stringify(rule));
+    let attempts = 0;
+    const MAX_ATTEMPTS = 5; // Safety mechanism to prevent infinite loops
 
     // Keep simplifying the deepest groups until we're within the limit
-    while (this.calculateDepth(ruleCopy.create_pattern.conditions) > this.DEPTH_LIMIT) {
+    while (this.calculateDepth(ruleCopy.create_pattern.conditions) > this.DEPTH_LIMIT && attempts < MAX_ATTEMPTS) {
       // Find the path to the deepest group
       const deepestInfo = this.findDeepestGroup(ruleCopy.create_pattern.conditions);
 
@@ -84,6 +84,8 @@ export default {
 
       // Simplify the structure by flattening the deepest group
       this.simplifyDeepestGroup(ruleCopy.create_pattern.conditions, deepestInfo.path);
+
+      attempts++; // Increment attempt counter
     }
 
     return ruleCopy;
@@ -100,7 +102,13 @@ export default {
     for (let i = 0; i < path.length - 1; i++) {
       parent = current;
       parentIndex = path[i];
-      current = current[path[i]];
+
+      if (typeof parentIndex !== 'number' || !parent[parentIndex]) {
+        console.warn('Invalid path while simplifying deep group', path);
+        return; // Early return if path is invalid
+      }
+
+      current = parent[parentIndex];
 
       if (current.conditions && i < path.length - 2) {
         current = current.conditions;
@@ -137,11 +145,11 @@ export default {
     }
   },
 
-  formatReadableRule(conditions, joinOps) {
+  formatReadableRule(conditions, joinOperators) {
     if (!conditions || conditions.length === 0) return '';
 
     let result = '';
-    const localJoinOps = joinOps || [];
+    const localJoinOps = joinOperators || [];
 
     for (let i = 0; i < conditions.length; i++) {
       const condition = conditions[i];
@@ -228,7 +236,7 @@ export default {
     }
 
     // Check for empty function arguments in replace pattern
-    if (replacePattern.fn && (!replacePattern.fnArg || replacePattern.fnArg.trim() === '')) {
+    if (replacePattern.withFn && replacePattern.fn && (!replacePattern.fnArg || replacePattern.fnArg.trim() === '')) {
       alert('Function argument cannot be empty when using a function.');
       return false;
     }
@@ -251,8 +259,13 @@ export default {
       return false;
     }
 
-    if ((replacePattern.fn && !replacePattern.fnArg) || (!replacePattern.fn && !replacePattern.value)) {
-      alert('Replace pattern must either have a value or both function and function argument.');
+    if (replacePattern.withFn) {
+      if (!replacePattern.fn || !replacePattern.fnArg) {
+        alert('Replace pattern with function must have both function and function argument.');
+        return false;
+      }
+    } else if (!replacePattern.value && replacePattern.value !== '') {
+      alert('Replace pattern must have a value.');
       return false;
     }
 

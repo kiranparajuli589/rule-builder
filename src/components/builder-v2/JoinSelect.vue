@@ -1,5 +1,9 @@
 <template>
-  <select v-bind="$attrs" v-on="$listeners" class="join-select">
+  <select
+    v-bind="$attrs"
+    v-on="$listeners"
+    class="join-select"
+  >
     <option value="&&">AND</option>
     <option value="||">OR</option>
   </select>
@@ -12,6 +16,6 @@ export default {
     RuleService() {
       return RuleService
     }
-  }
+  },
 }
 </script>

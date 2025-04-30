@@ -64,6 +64,7 @@ export default {
   data() {
     return {
       rule: RuleService.initializeRule(),
+      isEnforcingDepthLimit: false // Flag to prevent infinite loops
     };
   },
   created() {
@@ -74,8 +75,11 @@ export default {
   },
   watch: {
     'rule.create_pattern.conditions': {
-      handler() {
-        this.checkDepthLimit();
+      handler(newConditions) {
+        // Only check depth if we're not already enforcing it
+        if (!this.isEnforcingDepthLimit) {
+          this.checkDepthLimit();
+        }
       },
       deep: true
     }
@@ -97,7 +101,9 @@ export default {
         alert(`The loaded rule exceeds the maximum nesting depth of ${RuleService.DEPTH_LIMIT}. The rule will be simplified to comply with the depth limit.`);
 
         // Enforce the depth limit
+        this.isEnforcingDepthLimit = true;
         ruleCopy = RuleService.enforceDepthLimit(ruleCopy);
+        this.isEnforcingDepthLimit = false;
       }
 
       this.rule = ruleCopy;
@@ -124,7 +130,28 @@ export default {
       const depth = RuleService.calculateDepth(this.rule.create_pattern.conditions);
       if (depth > RuleService.DEPTH_LIMIT) {
         console.warn(`Rule depth (${depth}) exceeds limit (${RuleService.DEPTH_LIMIT}). Enforcing depth limit...`);
-        this.rule = RuleService.enforceDepthLimit(this.rule);
+
+        // Set flag to prevent circular processing
+        this.isEnforcingDepthLimit = true;
+
+        try {
+          // Make a copy and enforce limits
+          const limitedRule = RuleService.enforceDepthLimit({
+            create_pattern: {
+              conditions: JSON.parse(JSON.stringify(this.rule.create_pattern.conditions))
+            }
+          });
+
+          // Apply the limited rule back to our rule object
+          this.rule.create_pattern.conditions = limitedRule.create_pattern.conditions;
+        } catch (error) {
+          console.error('Error enforcing depth limit:', error);
+        } finally {
+          // Always reset the flag
+          this.$nextTick(() => {
+            this.isEnforcingDepthLimit = false;
+          });
+        }
       }
     },
 

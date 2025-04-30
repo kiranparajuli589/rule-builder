@@ -33,7 +33,7 @@
       </button>
 
       <button
-        v-if="localConditions.length >= 2 && !hasOnlyGroups()"
+        v-if="localConditions.length >= 2 && !hasOnlyGroups() && !wouldExceedDepthLimit"
         type="button"
         class="bracket-btn"
         @click="bracketExistingConditions"
@@ -46,6 +46,27 @@
         type="button"
         class="add-group-btn"
         @click="addGroup"
+      >
+        Add Group
+      </button>
+
+      <!-- Disabled buttons when at depth limit -->
+      <button
+        v-if="localConditions.length >= 2 && !hasOnlyGroups() && wouldExceedDepthLimit"
+        type="button"
+        class="bracket-btn disabled"
+        disabled
+        title="Maximum nesting depth reached"
+      >
+        Bracket These Conditions
+      </button>
+
+      <button
+        v-if="localConditions.length >= 2 && wouldExceedDepthLimit"
+        type="button"
+        class="add-group-btn disabled"
+        disabled
+        title="Maximum nesting depth reached"
       >
         Add Group
       </button>
@@ -137,5 +158,16 @@ export default {
   font-size: 13px;
   font-style: italic;
   margin-left: 10px;
+}
+
+.disabled {
+  opacity: 0.5;
+  cursor: not-allowed !important;
+
+  &:hover {
+    background-color: inherit !important;
+    transform: none !important;
+    box-shadow: none !important;
+  }
 }
 </style>

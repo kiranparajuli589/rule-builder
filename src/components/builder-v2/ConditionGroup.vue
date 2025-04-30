@@ -1,5 +1,3 @@
-<!-- Only show Add Group/Bracket buttons if depth limit is not reached -->
-
 <template>
   <div
     class="group-container"
@@ -102,6 +100,27 @@
           Add Group
         </button>
 
+        <!-- Disabled buttons when at depth limit -->
+        <button
+          v-if="group.conditions.length >= 2 && !hasOnlyGroupsInGroup && isAtDepthLimit"
+          type="button"
+          class="bracket-btn disabled"
+          disabled
+          title="Maximum nesting depth reached"
+        >
+          Bracket These Conditions
+        </button>
+
+        <button
+          v-if="group.conditions.length >= 2 && isAtDepthLimit"
+          type="button"
+          class="add-group-btn disabled"
+          disabled
+          title="Maximum nesting depth reached"
+        >
+          Add Group
+        </button>
+
         <div v-if="isAtDepthLimit && (group.conditions.length >= 2)" class="depth-limit-notice">
           Maximum nesting depth reached
         </div>
@@ -200,11 +219,11 @@ export default {
 
     bracketGroupConditions() {
       // Check if adding a nested group would exceed depth limit
-      console.log(this.nestingLevel, this.isAtDepthLimit)
       if (this.isAtDepthLimit) {
         alert(`Cannot add more brackets - maximum nesting depth of ${RuleService.DEPTH_LIMIT} reached.`);
         return;
       }
+
       // Create a nested group from the existing conditions in this group
       const nestedGroup = {
         id: RuleService.generateId(),
@@ -299,6 +318,18 @@ export default {
   &.group-container {
     border-left-color: #e53e3e !important;
     background-color: rgba(254, 215, 215, 0.1);
+  }
+}
+
+// Style for disabled buttons
+.disabled {
+  opacity: 0.5;
+  cursor: not-allowed !important;
+
+  &:hover {
+    background-color: inherit !important;
+    transform: none !important;
+    box-shadow: none !important;
   }
 }
 </style>
