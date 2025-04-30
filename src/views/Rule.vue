@@ -96,7 +96,6 @@ body {
     overflow-y: auto;
     border-right: 1px solid #e0e7ff;
 
-
     ul {
       list-style: none;
       padding: 0;
@@ -145,12 +144,24 @@ body {
       }
     }
 
-    background-color: rgba(248, 250, 255, 0.58);
-
+    position: relative;
+    &::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(5px);
+      z-index: 1;
+    }
   }
 
   &__rule_nav {
     width: 350px;
+
+
   }
 
   &__container {
