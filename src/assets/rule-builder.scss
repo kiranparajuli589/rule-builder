@@ -1,0 +1,464 @@
+$color-primary: #2196f3;
+$color-success: #38a169;
+$color-warning: #ed8936;
+$color-danger: #f56565;
+$color-text: #4a5568;
+$color-text-light: #718096;
+$color-border: #e2e8f0;
+$color-bg-light: #f7fafc;
+$color-bg: #fff;
+
+// Level colors
+$level-colors: (
+  1: (#98c4ea, #2074c5),
+  2: (#5dc5c0, #18898f),
+  3: (#9a7ed8, #6b46c1),
+  4: (#eaa46b, #dd6b20),
+  5: (#da6767, #c53030)
+);
+
+// Mixins
+@mixin flex-row {
+  display: flex;
+  align-items: center;
+}
+
+@mixin flex-column {
+  display: flex;
+  flex-direction: column;
+}
+
+@mixin button-base {
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 6px 12px;
+  font-size: 13px;
+  transition: all 0.2s ease;
+}
+
+@mixin outlined-button($color) {
+  @include button-base;
+  border: 1px solid $color;
+  color: $color;
+  background-color: white;
+
+  &:hover {
+    background-color: rgba($color, 0.05);
+  }
+}
+
+@mixin filled-button($bg-color, $text-color: white) {
+  @include button-base;
+  background-color: $bg-color;
+  color: $text-color;
+  border: none;
+
+  &:hover {
+    background-color: darken($bg-color, 10%);
+  }
+}
+
+// Main Component Styles
+.rule-builder-container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 30px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  h1 {
+    font-size: 28px;
+    font-weight: 600;
+    color: $color-text;
+    margin-bottom: 30px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid $color-border;
+  }
+
+  .section {
+    margin-bottom: 35px;
+    border: 1px solid $color-border;
+    border-radius: 10px;
+    padding: 25px;
+    background-color: $color-bg;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease;
+
+    &:hover {
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+    }
+
+    h2 {
+      font-size: 20px;
+      font-weight: 600;
+      color: $color-text;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid $color-border;
+    }
+  }
+
+  .actions {
+    margin-top: 25px;
+    display: flex;
+    gap: 15px;
+  }
+
+  .btn-primary {
+    @include filled-button($color-success);
+
+    &::before {
+      content: "💾";
+      margin-right: 8px;
+    }
+  }
+
+  .btn-secondary {
+    @include filled-button($color-bg-light, $color-text);
+
+    &::before {
+      content: "↺";
+      margin-right: 8px;
+      font-weight: bold;
+    }
+
+    &:hover {
+      background-color: darken($color-bg-light, 5%);
+    }
+  }
+
+  .preview-section {
+    margin-top: 35px;
+    padding: 25px;
+    border: 1px solid $color-border;
+    background-color: $color-bg-light;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+
+    h3 {
+      font-size: 18px;
+      font-weight: 600;
+      color: $color-text;
+      margin-bottom: 15px;
+    }
+  }
+
+  .preview-readable {
+    margin-bottom: 25px;
+  }
+
+  .readable-rule {
+    background-color: $color-bg;
+    border: 1px solid $color-border;
+    padding: 15px;
+    border-radius: 6px;
+    margin-bottom: 15px;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 14px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+
+    strong {
+      margin-right: 10px;
+      color: $color-text;
+      font-weight: 600;
+    }
+  }
+
+  pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    background-color: #2d3748;
+    color: #e2e8f0;
+    padding: 15px;
+    border-radius: 6px;
+    max-height: 350px;
+    overflow-y: auto;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  // Create Pattern Builder
+  .create-pattern-builder {
+    @include flex-column;
+    gap: 15px;
+  }
+
+  .condition-container {
+    @include flex-row;
+    gap: 10px;
+    .condition-row {
+      flex-grow: 1;
+    }
+  }
+
+  .condition-row {
+    @include flex-row;
+    gap: 10px;
+  }
+
+  .field-operator-value {
+    @include flex-row;
+    gap: 10px;
+    flex-grow: 1;
+  }
+
+  .field-select, .operator-select, .value-input, .join-select {
+    padding: 6px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+
+    &:focus {
+      border-color: $color-primary;
+      outline: none;
+      box-shadow: 0 0 0 2px rgba($color-primary, 0.1);
+    }
+  }
+
+  .field-select {
+    width: 160px;
+  }
+
+  .operator-select {
+    width: 120px;
+  }
+
+  .value-input {
+    flex-grow: 1;
+    min-width: 150px;
+  }
+
+  .join-operator-row {
+    @include flex-row;
+    margin: 5px 0;
+  }
+
+  .join-select {
+    width: 100px;
+  }
+
+  .delete-btn {
+    @include filled-button($color-danger);
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+
+  .actions-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  .add-btn {
+    @include outlined-button($color-primary);
+  }
+
+  .bracket-btn {
+    @include outlined-button($color-warning);
+  }
+
+  .add-group-btn {
+    @include outlined-button($color-success);
+  }
+
+  // Group Container Styles
+  .group-container {
+    position: relative;
+    border-radius: 6px;
+    background-color: $color-bg;
+    width: 100%;
+
+    // Generate level-specific styles using the map
+    @each $level, $colors in $level-colors {
+      $light-color: nth($colors, 1);
+      $dark-color: nth($colors, 2);
+
+      &.level-#{$level} {
+        border-left: 3px solid $light-color;
+        transition: all 0.3s ease;
+
+        &:hover {
+          border-color: $dark-color;
+        }
+      }
+    }
+  }
+
+  .group-header {
+    @include flex-row;
+    padding: 8px 12px;
+    background-color: $color-bg-light;
+    border-radius: 6px 6px 0 0;
+    border: 1px solid $color-border;
+    border-bottom: none;
+  }
+
+  .group-marker {
+    @include flex-row;
+    margin-right: 8px;
+  }
+
+  .expand-collapse-btn {
+    background: none;
+    border: none;
+    font-size: 16px;
+    cursor: pointer;
+    color: $color-text;
+    padding: 0 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .nesting-info {
+    font-size: 13px;
+    color: $color-text-light;
+    @include flex-row;
+    flex-grow: 1;
+  }
+
+  .level-badge {
+    background-color: $color-bg-light;
+    color: $color-text;
+    font-size: 12px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+    font-weight: 600;
+  }
+
+  .delete-group-container {
+    margin-left: auto;
+  }
+
+  .group-content {
+    padding: 16px 16px 16px 20px;
+    border: 1px solid $color-border;
+    border-top: none;
+    border-bottom: none;
+  }
+
+  .group-conditions {
+    @include flex-column;
+    gap: 12px;
+  }
+
+  .group-condition {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    gap: 12px;
+  }
+
+  .condition-item {
+    @include flex-row;
+    flex-grow: 1;
+  }
+
+  .join-operator {
+    @include flex-row;
+    justify-content: start;
+    padding: 0;
+    margin: 0;
+  }
+
+  .group-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .group-footer {
+    padding: 8px 12px;
+    height: 32px;
+    background-color: $color-bg-light;
+    border-radius: 0 0 6px 6px;
+    border: 1px solid $color-border;
+    border-top: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .bracket {
+    font-size: 18px;
+    font-weight: bold;
+    color: $color-text-light;
+  }
+
+  .collapsed-summary {
+    padding: 15px;
+    background-color: $color-bg-light;
+    color: $color-text;
+    font-style: italic;
+    text-align: center;
+    border: 1px solid $color-border;
+    border-top: none;
+    border-bottom: none;
+  }
+
+  // Replace Pattern Builder
+  .replace-pattern-builder {
+    @include flex-column;
+    gap: 20px;
+  }
+
+  .pattern-row {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+
+  .field-section, .pattern-type-section {
+    @include flex-column;
+    gap: 8px;
+  }
+
+  .function-select, .function-arg-input {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    min-width: 200px;
+  }
+
+  .value-section, .function-section {
+    @include flex-column;
+    gap: 8px;
+  }
+
+  .function-row {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+
+  .function-select-container, .function-arg-container {
+    @include flex-column;
+    gap: 8px;
+  }
+
+  .radio-group {
+    display: flex;
+    gap: 15px;
+  }
+
+  .radio-label {
+    @include flex-row;
+    gap: 5px;
+    cursor: pointer;
+  }
+
+  .function-description {
+    margin-top: 5px;
+    font-size: 13px;
+    color: #666;
+    font-style: italic;
+  }
+
+  label {
+    font-weight: 500;
+    font-size: 14px;
+    color: $color-text;
+  }
+}
