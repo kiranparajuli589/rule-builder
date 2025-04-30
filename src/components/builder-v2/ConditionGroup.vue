@@ -18,7 +18,7 @@
 
       <div class="nesting-info">
         Group <span class="level-badge">Level {{ nestingLevel }}</span>
-        <span v-if="isAtDepthLimit" class="depth-limit-badge">Max Depth</span>
+        <span v-if="isAtDepthLimit || wouldExceedDepthLimit" class="depth-limit-badge">Max Depth</span>
       </div>
 
       <div class="delete-group-container">
@@ -82,7 +82,7 @@
 
         <!-- Only show if not at depth limit -->
         <button
-          v-if="group.conditions.length >= 2 && !hasOnlyGroupsInGroup && !isAtDepthLimit"
+          v-if="group.conditions.length >= 2 && !hasOnlyGroupsInGroup && !wouldExceedDepthLimit && !isAtDepthLimit"
           type="button"
           class="bracket-btn"
           @click="bracketGroupConditions"
@@ -92,7 +92,7 @@
 
         <!-- Only show if not at depth limit -->
         <button
-          v-if="group.conditions.length >= 2 && !isAtDepthLimit"
+          v-if="group.conditions.length >= 2 && !wouldExceedDepthLimit && !isAtDepthLimit"
           type="button"
           class="add-group-btn"
           @click="addNestedGroup"
@@ -102,7 +102,7 @@
 
         <!-- Disabled buttons when at depth limit -->
         <button
-          v-if="group.conditions.length >= 2 && !hasOnlyGroupsInGroup && isAtDepthLimit"
+          v-if="group.conditions.length >= 2 && !hasOnlyGroupsInGroup && (wouldExceedDepthLimit || isAtDepthLimit)"
           type="button"
           class="bracket-btn disabled"
           disabled
@@ -112,7 +112,7 @@
         </button>
 
         <button
-          v-if="group.conditions.length >= 2 && isAtDepthLimit"
+          v-if="group.conditions.length >= 2 && (wouldExceedDepthLimit || isAtDepthLimit)"
           type="button"
           class="add-group-btn disabled"
           disabled
@@ -121,7 +121,7 @@
           Add Group
         </button>
 
-        <div v-if="isAtDepthLimit && (group.conditions.length >= 2)" class="depth-limit-notice">
+        <div v-if="(isAtDepthLimit || wouldExceedDepthLimit) && (group.conditions.length >= 2)" class="depth-limit-notice">
           Maximum nesting depth reached
         </div>
 
@@ -165,7 +165,7 @@ export default {
       return {
         [`level-${this.nestingLevel}`]: true,
         'level-from-2': this.nestingLevel >= 1,
-        'depth-limit-reached': this.isAtDepthLimit
+        'depth-limit-reached': this.isAtDepthLimit || this.wouldExceedDepthLimit
       };
     },
     hasOnlyGroupsInGroup() {
@@ -179,6 +179,15 @@ export default {
     },
     isAtDepthLimit() {
       return this.nestingLevel >= RuleService.DEPTH_LIMIT;
+    },
+    // Calculate the maximum depth of any branch within this group
+    groupMaxDepth() {
+      return RuleService.calculateDepth(this.group.conditions);
+    },
+    // Check if adding another level of nesting would exceed the depth limit
+    wouldExceedDepthLimit() {
+      // We need to add 1 to account for the current nesting level
+      return (this.nestingLevel + this.groupMaxDepth + 1) > RuleService.DEPTH_LIMIT;
     }
   },
   watch: {
@@ -219,7 +228,7 @@ export default {
 
     bracketGroupConditions() {
       // Check if adding a nested group would exceed depth limit
-      if (this.isAtDepthLimit) {
+      if (this.wouldExceedDepthLimit || this.isAtDepthLimit) {
         alert(`Cannot add more brackets - maximum nesting depth of ${RuleService.DEPTH_LIMIT} reached.`);
         return;
       }
@@ -244,7 +253,7 @@ export default {
 
     addNestedGroup() {
       // Check if adding a nested group would exceed depth limit
-      if (this.isAtDepthLimit) {
+      if (this.wouldExceedDepthLimit || this.isAtDepthLimit) {
         alert(`Cannot add nested group - maximum nesting depth of ${RuleService.DEPTH_LIMIT} reached.`);
         return;
       }

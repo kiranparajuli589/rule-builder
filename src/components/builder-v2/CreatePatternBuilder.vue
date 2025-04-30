@@ -18,7 +18,7 @@
 
       <!-- Join operator between top-level conditions -->
       <div v-if="index < localConditions.length - 1" class="join-operator-row">
-        <JoinSelect v-model="joinOperators[index]" />
+        <JoinSelect v-model="joinOperators[index]" @operator-changed="updateJoinOperator(index, $event)" />
       </div>
     </div>
 
@@ -75,6 +75,16 @@
         Maximum nesting depth of {{ RuleService.DEPTH_LIMIT }} reached
       </div>
     </div>
+
+    <div v-if="isRuleTooComplex" class="rule-too-complex">
+      <div class="alert alert-warning">
+        <strong>Warning:</strong> This rule has become too complex with a depth of
+        {{ currentDepth }} levels (maximum is {{ RuleService.DEPTH_LIMIT }}).
+        <button type="button" class="btn-reset-rule" @click="resetRule">
+          Reset Rule
+        </button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -102,6 +112,7 @@ export default {
   data() {
     return {
       hasPromptedForBracketing: false,
+      lastCheckedDepth: 0,
     };
   },
   computed: {
@@ -111,6 +122,13 @@ export default {
     wouldExceedDepthLimit() {
       // Check if adding a group at top level would exceed the depth limit
       return RuleService.wouldExceedDepthLimit(this.localConditions);
+    },
+    currentDepth() {
+      return RuleService.calculateDepth(this.localConditions);
+    },
+    isRuleTooComplex() {
+      // Consider showing a warning if depth is getting close to or exceeding the limit
+      return this.currentDepth > RuleService.DEPTH_LIMIT;
     }
   },
   watch: {
@@ -123,6 +141,15 @@ export default {
       deep: true,
       immediate: true
     },
+    currentDepth: {
+      handler(newDepth, oldDepth) {
+        // Check if depth has increased beyond the limit
+        if (newDepth > RuleService.DEPTH_LIMIT && newDepth > this.lastCheckedDepth) {
+          this.lastCheckedDepth = newDepth;
+          this.enforceDepthLimitNow();
+        }
+      }
+    }
   },
   methods: {
     // Override addGroup method to check depth limit
@@ -147,6 +174,47 @@ export default {
 
       // Use the bracketExistingConditions method from the mixin
       this.$options.mixins[0].methods.bracketExistingConditions.call(this);
+    },
+
+    // Method to enforce depth limit immediately
+    enforceDepthLimitNow() {
+      console.warn(`Rule depth (${this.currentDepth}) exceeds limit (${RuleService.DEPTH_LIMIT}). Enforcing depth limit...`);
+
+      // Create a deep copy to avoid reference issues
+      let simplifiedConditions = JSON.parse(JSON.stringify(this.localConditions));
+
+      // Apply auto-simplification - limit to 5 attempts to prevent freezing
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const deepestInfo = RuleService.findDeepestGroup(simplifiedConditions);
+
+        if (!deepestInfo.path || deepestInfo.path.length === 0 || deepestInfo.depth <= RuleService.DEPTH_LIMIT) {
+          break;
+        }
+
+        RuleService.simplifyDeepestGroup(simplifiedConditions, deepestInfo.path);
+      }
+
+      // Check if simplified conditions are within limit
+      const newDepth = RuleService.calculateDepth(simplifiedConditions);
+
+      if (newDepth <= RuleService.DEPTH_LIMIT) {
+        // Update conditions with simplified version
+        this.localConditions = simplifiedConditions;
+        alert(`Your rule exceeded the maximum nesting depth of ${RuleService.DEPTH_LIMIT}. It has been automatically simplified.`);
+      } else {
+        // If still too complex, show warning but don't freeze UI
+        console.error(`Unable to simplify rule to meet depth limit of ${RuleService.DEPTH_LIMIT}. Current depth: ${newDepth}`);
+      }
+    },
+
+    // Reset the rule to a simple state if it becomes too complex
+    resetRule() {
+      if (confirm("This will reset your current rule to a blank state. Are you sure?")) {
+        this.localConditions = [RuleService.newCondition()];
+        this.joinOperators = [];
+        this.lastCheckedDepth = 0;
+        this.$emit('update:conditions', this.localConditions);
+      }
     }
   }
 }
@@ -168,6 +236,37 @@ export default {
     background-color: inherit !important;
     transform: none !important;
     box-shadow: none !important;
+  }
+}
+
+.rule-too-complex {
+  margin-top: 15px;
+}
+
+.alert {
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin: 10px 0;
+
+  &.alert-warning {
+    background-color: #fef5e7;
+    border: 1px solid #f8bb86;
+    color: #8a5d3b;
+  }
+}
+
+.btn-reset-rule {
+  background-color: #e53e3e;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 10px;
+  margin-left: 10px;
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover {
+    background-color: #c53030;
   }
 }
 </style>

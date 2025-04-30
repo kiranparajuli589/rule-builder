@@ -32,10 +32,19 @@ export default {
     return maxDepth;
   },
 
+  // Calculate effective depth taking into account the current nesting level
+  calculateEffectiveDepth(conditions, currentLevel = 0) {
+    return currentLevel + this.calculateDepth(conditions);
+  },
+
   // Check if adding a group at the given location would exceed the depth limit
   wouldExceedDepthLimit(conditions, nestingLevel = 0) {
     // If we're already at the limit, adding more would exceed it
-    return nestingLevel + this.calculateDepth(conditions) >= this.DEPTH_LIMIT;
+    if (nestingLevel >= this.DEPTH_LIMIT) return true;
+
+    // Calculate the current max depth and add 1 for the new level we want to add
+    const currentMaxDepth = this.calculateDepth(conditions);
+    return (nestingLevel + currentMaxDepth + 1) > this.DEPTH_LIMIT;
   },
 
   // Find and report the deepest group in a rule
@@ -72,7 +81,7 @@ export default {
     // Make a copy to avoid modifying the original
     const ruleCopy = JSON.parse(JSON.stringify(rule));
     let attempts = 0;
-    const MAX_ATTEMPTS = 5; // Safety mechanism to prevent infinite loops
+    const MAX_ATTEMPTS = 10; // Safety mechanism to prevent infinite loops
 
     // Keep simplifying the deepest groups until we're within the limit
     while (this.calculateDepth(ruleCopy.create_pattern.conditions) > this.DEPTH_LIMIT && attempts < MAX_ATTEMPTS) {
@@ -82,10 +91,17 @@ export default {
       // No deep groups found or can't determine path
       if (!deepestInfo.path || deepestInfo.path.length === 0) break;
 
+      console.log(`Simplifying deepest group at depth ${deepestInfo.depth}`);
+
       // Simplify the structure by flattening the deepest group
       this.simplifyDeepestGroup(ruleCopy.create_pattern.conditions, deepestInfo.path);
 
       attempts++; // Increment attempt counter
+    }
+
+    // If we still exceed the depth limit after MAX_ATTEMPTS, log a warning
+    if (this.calculateDepth(ruleCopy.create_pattern.conditions) > this.DEPTH_LIMIT) {
+      console.warn(`Failed to enforce depth limit after ${MAX_ATTEMPTS} attempts. Rule is too complex.`);
     }
 
     return ruleCopy;
@@ -338,4 +354,9 @@ export default {
     }
     return flat;
   },
+
+  // Reset a rule that has become too complex to a simpler state
+  resetComplexRule() {
+    return this.initializeRule();
+  }
 };

@@ -6,6 +6,7 @@ export const RuleMixin = {
       localConditions: [],
       joinOperators: [],
       isProcessingAutomatic: false, // Flag to prevent infinite recursion
+      depthCheckInProgress: false, // Flag to prevent nested depth check calls
     }
   },
   watch: {
@@ -14,12 +15,72 @@ export const RuleMixin = {
         if (!this.isProcessingAutomatic) {
           this.checkAndApplyBrackets();
         }
+
+        // Check depth on condition changes, but avoid recursive calls
+        if (!this.depthCheckInProgress) {
+          this.checkDepthExceeded();
+        }
+
         this.$emit('update:conditions', this.localConditions);
       },
       deep: true
     }
   },
   methods: {
+    // Check if the current conditions exceed depth limit
+    checkDepthExceeded() {
+      this.depthCheckInProgress = true;
+
+      try {
+        const currentDepth = RuleService.calculateDepth(this.localConditions);
+        if (currentDepth > RuleService.DEPTH_LIMIT) {
+          console.warn(`Depth limit exceeded in RuleMixin. Current: ${currentDepth}, Limit: ${RuleService.DEPTH_LIMIT}`);
+          this.enforceDepthLimit();
+        }
+      } finally {
+        // Always reset the flag
+        this.$nextTick(() => {
+          this.depthCheckInProgress = false;
+        });
+      }
+    },
+
+    // Apply depth limit enforcement
+    enforceDepthLimit() {
+      if (this.isProcessingAutomatic) return;
+
+      this.isProcessingAutomatic = true;
+
+      try {
+        // Create a copy of conditions to work with
+        let simplifiedConditions = JSON.parse(JSON.stringify(this.localConditions));
+
+        // Apply simplification - max 3 attempts to prevent freezing
+        for (let i = 0; i < 3; i++) {
+          const deepestInfo = RuleService.findDeepestGroup(simplifiedConditions);
+
+          if (!deepestInfo.path || deepestInfo.path.length === 0 ||
+            deepestInfo.depth <= RuleService.DEPTH_LIMIT) {
+            break;
+          }
+
+          RuleService.simplifyDeepestGroup(simplifiedConditions, deepestInfo.path);
+        }
+
+        // Check if simplification was successful
+        if (RuleService.calculateDepth(simplifiedConditions) <= RuleService.DEPTH_LIMIT) {
+          this.localConditions = simplifiedConditions;
+        }
+      } catch (error) {
+        console.error('Error enforcing depth limit in mixin:', error);
+      } finally {
+        // Reset processing flag
+        this.$nextTick(() => {
+          this.isProcessingAutomatic = false;
+        });
+      }
+    },
+
     initializeFromProps() {
       this.localConditions = JSON.parse(JSON.stringify(this.conditions || []));
 
@@ -33,6 +94,9 @@ export const RuleMixin = {
       if (this.localConditions.length === 0) {
         this.addCondition();
       }
+
+      // Check depth right at initialization
+      this.checkDepthExceeded();
     },
 
     hasOnlyGroups() {
@@ -103,6 +167,9 @@ export const RuleMixin = {
       if (this.localConditions.length > 1) {
         this.joinOperators.push('&&');
       }
+
+      // Check depth after adding group
+      this.checkDepthExceeded();
     },
 
     bracketExistingConditions() {
@@ -129,6 +196,9 @@ export const RuleMixin = {
 
       // Add join operator
       this.joinOperators.push('&&');
+
+      // Check depth after bracketing
+      this.checkDepthExceeded();
     },
 
     removeCondition(index) {
@@ -147,8 +217,10 @@ export const RuleMixin = {
       }
     },
 
-    updateJoinOperator(index) {
+    updateJoinOperator(index, newValue) {
       // This method is called when a join operator is changed
+      this.joinOperators[index] = newValue;
+
       const hasAnd = this.joinOperators.includes('&&');
       const hasOr = this.joinOperators.includes('||');
 
@@ -303,6 +375,9 @@ export const RuleMixin = {
 
       // Insert the new group
       this.localConditions.splice(startIndex, 0, newGroup);
+
+      // Check depth after conversion
+      this.checkDepthExceeded();
     },
 
     warnAboutUnbracketedConditions(startIndex, count) {
