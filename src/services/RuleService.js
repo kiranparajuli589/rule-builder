@@ -1,7 +1,7 @@
 import ConditionService from './ConditionService.js';
 
 export default {
-  DEPTH_LIMIT: 2, // Maximum nesting depth allowed
+  DEPTH_LIMIT: 3, // Maximum nesting depth allowed
 
   get fields() {
     return ConditionService.fields;

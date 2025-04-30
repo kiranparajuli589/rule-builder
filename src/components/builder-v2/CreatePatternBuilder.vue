@@ -1,6 +1,11 @@
 <template>
   <div class="create-pattern-builder">
-    <div v-for="(condition, index) in localConditions" :key="condition.id" class="condition-container">
+    <div
+      v-for="(condition, index) in localConditions"
+      :key="condition.id"
+      class="condition-container"
+
+    >
       <!-- Group container for brackets - use recursive component -->
       <condition-group
         v-if="condition.isGroup"
@@ -46,27 +51,6 @@
         type="button"
         class="add-group-btn"
         @click="addGroup"
-      >
-        Add Group
-      </button>
-
-      <!-- Disabled buttons when at depth limit -->
-      <button
-        v-if="localConditions.length >= 2 && !hasOnlyGroups() && wouldExceedDepthLimit"
-        type="button"
-        class="bracket-btn disabled"
-        disabled
-        title="Maximum nesting depth reached"
-      >
-        Bracket These Conditions
-      </button>
-
-      <button
-        v-if="localConditions.length >= 2 && wouldExceedDepthLimit"
-        type="button"
-        class="add-group-btn disabled"
-        disabled
-        title="Maximum nesting depth reached"
       >
         Add Group
       </button>

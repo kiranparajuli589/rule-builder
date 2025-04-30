@@ -100,27 +100,6 @@
           Add Group
         </button>
 
-        <!-- Disabled buttons when at depth limit -->
-        <button
-          v-if="group.conditions.length >= 2 && !hasOnlyGroupsInGroup && (wouldExceedDepthLimit || isAtDepthLimit)"
-          type="button"
-          class="bracket-btn disabled"
-          disabled
-          title="Maximum nesting depth reached"
-        >
-          Bracket These Conditions
-        </button>
-
-        <button
-          v-if="group.conditions.length >= 2 && (wouldExceedDepthLimit || isAtDepthLimit)"
-          type="button"
-          class="add-group-btn disabled"
-          disabled
-          title="Maximum nesting depth reached"
-        >
-          Add Group
-        </button>
-
         <div v-if="(isAtDepthLimit || wouldExceedDepthLimit) && (group.conditions.length >= 2)" class="depth-limit-notice">
           Maximum nesting depth reached
         </div>
@@ -164,7 +143,6 @@ export default {
     containerClass() {
       return {
         [`level-${this.nestingLevel}`]: true,
-        'level-from-2': this.nestingLevel >= 1,
         'depth-limit-reached': this.isAtDepthLimit || this.wouldExceedDepthLimit
       };
     },

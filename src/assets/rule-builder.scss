@@ -184,7 +184,7 @@ $level-colors: (
   }
 
   .condition-container {
-    @include flex-row;
+    @include flex-column;
     gap: 10px;
     .condition-row {
       flex-grow: 1;
