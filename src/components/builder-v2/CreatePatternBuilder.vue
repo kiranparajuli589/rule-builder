@@ -15,15 +15,15 @@
 
       <ConditionInputs
         v-else
-        :condition.sync="condition"
+        :condition="condition"
         :show-remove="localConditions.length > 1"
         @remove="removeCondition(index)"
         class="condition-row"
+        @update:condition="updateCondition(index, $event)"
       />
 
-      <!-- Join operator between top-level conditions -->
       <div v-if="index < localConditions.length - 1" class="join-operator-row">
-        <JoinSelect v-model="joinOperators[index]" @operator-changed="updateJoinOperator(index, $event)" />
+        <JoinSelect :selected="joinOperators[index]" @update:selected="updateJoinOperator(index, $event)" />
       </div>
     </div>
 
@@ -199,6 +199,10 @@ export default {
         this.lastCheckedDepth = 0;
         this.$emit('update:conditions', this.localConditions);
       }
+    },
+
+    updateCondition(index, updatedCondition) {
+      this.localConditions.splice(index, 1, updatedCondition);
     }
   }
 }

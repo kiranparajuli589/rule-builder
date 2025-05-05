@@ -16,7 +16,7 @@
       <input
         type="text"
         v-model="localCondition.value"
-        placeholder="Value"
+        placeholder="Values"
         class="value-input"
       />
     </div>
@@ -53,7 +53,6 @@ export default {
   },
   data() {
     return {
-
       localCondition: JSON.parse(JSON.stringify(this.condition))
     };
   },
@@ -73,7 +72,7 @@ export default {
     localCondition: {
       handler(newValue) {
         console.log(newValue);
-        this.$emit("update:condition", newValue);
+        this.$emit("update:condition", JSON.parse(JSON.stringify(newValue)));
       },
       deep: true,
     }

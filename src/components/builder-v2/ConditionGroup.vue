@@ -50,16 +50,17 @@
 
           <ConditionInputs
             v-else
-            :condition.sync="groupCond"
+            :condition="groupCond"
             :show-remove="group.conditions.length > 2 && groupIndex > 0"
             @remove="removeGroupCondition(groupIndex)"
             class="condition-item"
+            @update:condition="(newCondition) => group.conditions.splice(groupIndex, 1, newCondition)"
           />
 
           <!-- Join operator between conditions -->
           <div v-if="groupIndex < group.conditions.length - 1" class="join-operator">
             <JoinSelect
-              v-model="group.joinOperator"
+              :selected.sync="group.joinOperator"
               class="join-select"
             />
           </div>

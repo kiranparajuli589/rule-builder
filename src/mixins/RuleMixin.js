@@ -218,7 +218,6 @@ export const RuleMixin = {
     },
 
     updateJoinOperator(index, newValue) {
-      // This method is called when a join operator is changed
       this.joinOperators[index] = newValue;
 
       const hasAnd = this.joinOperators.includes('&&');

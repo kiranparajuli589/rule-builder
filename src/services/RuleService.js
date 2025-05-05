@@ -161,6 +161,7 @@ export default {
     }
   },
 
+  // UPDATED METHOD: Format rule with function-style syntax
   formatReadableRule(conditions, joinOperators) {
     if (!conditions || conditions.length === 0) return '';
 
@@ -178,8 +179,18 @@ export default {
         // Add closing bracket
         result += ')';
       } else {
-        // Format single condition
-        result += `${condition.field} ${condition.operator} ${condition.value}`;
+        // Format single condition with function-style syntax for certain operators
+        const valueDisplay = condition.value !== undefined ? `"${condition.value}"` : 'undefined';
+
+        if (condition.operator === 'starts_with' || condition.operator === 'ends_with' ||
+          condition.operator === '~~' || condition.operator === 'contains') {
+          // Use function-style syntax for these operators
+          const fnName = condition.operator === '~~' ? 'contains' : condition.operator;
+          result += `${fnName}(${condition.field}, ${valueDisplay})`;
+        } else {
+          // Regular comparison operators use standard syntax
+          result += `${condition.field} ${condition.operator} ${valueDisplay}`;
+        }
       }
 
       // Add join operator if not the last condition
@@ -195,7 +206,7 @@ export default {
     if (!pattern || !pattern.field) return '';
 
     if (pattern.withFn) {
-      return `${pattern.field} = ${pattern.fn ?? "_"}(${pattern.field}, "${pattern.fnArg}")`;
+      return `${pattern.fn ?? "_"}(${pattern.field}, "${pattern.fnArg}")`;
     } else if (pattern.value !== undefined) {
       return `${pattern.field} = "${pattern.value}"`;
     }
