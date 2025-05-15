@@ -8,6 +8,7 @@
         @update:selected="onFieldChange"
         menu-width="fit-content"
         btn-width="245px"
+        :label="showLabels ? $t('ruleBuilder.field') : undefined"
       />
 
       <select-dropdown
@@ -15,6 +16,7 @@
         :options="operators"
         :placeholder="$t('ruleBuilder.selectOperator')"
         menu-width="fit-content"
+        :label="showLabels ? $t('ruleBuilder.operator') : undefined"
       />
 
       <div class="flex-grow-1">
@@ -23,6 +25,7 @@
           :selected.sync="localCondition.value"
           :options="fieldMeta.options || []"
           :placeholder="fieldMeta.placeholder"
+          :label="showLabels ? $t('ruleBuilder.value') : undefined"
         />
 
         <CInput
@@ -35,9 +38,11 @@
           :max="fieldMeta.max"
           :step="fieldMeta.step"
           required
-          @blur="validateField()"
-          :is-valid="!validationError"
+          @blur="onFieldBlur"
+          @input="onFieldInput"
+          :is-valid="isTouched && !validationError"
           :invalid-feedback="validationError"
+          :label="showLabels ? $t('ruleBuilder.value') : undefined"
         />
 
         <CInput
@@ -46,9 +51,11 @@
           :placeholder="$t('ruleBuilder.enterValue')"
           class="value-input"
           required
-          @blur="validateField()"
-          :is-valid="!validationError"
+          @blur="onFieldBlur"
+          @input="onFieldInput"
+          :is-valid="isTouched ? !validationError : undefined"
           :invalid-feedback="validationError"
+          :label="showLabels ? $t('ruleBuilder.value') : undefined"
         />
       </div>
     </div>
@@ -83,12 +90,17 @@ export default {
     showRemove: {
       type: Boolean,
       default: false
+    },
+    showLabels: {
+      type: Boolean,
+      default: false,
     }
   },
   data() {
     return {
       localCondition: null,
-      validationError: null
+      validationError: null,
+      isTouched: false // Track if field has been touched
     };
   },
   computed: {
@@ -109,9 +121,19 @@ export default {
     condition: {
       immediate: true,
       handler(newVal) {
-        // Avoid infinite loops by only updating if different
         if (!this.localCondition || JSON.stringify(newVal) !== JSON.stringify(this.localCondition)) {
           this.localCondition = JSON.parse(JSON.stringify(newVal));
+
+          // Reset touched state when condition changes completely
+          if (newVal.field !== this.localCondition?.field) {
+            this.isTouched = false;
+          }
+
+          // Check if field already has a value when initializing
+          if (this.localCondition.value && this.localCondition.value.length > 0) {
+            // If a value exists, validate it but don't mark as touched yet
+            this.validateField();
+          }
         }
       }
     },
@@ -126,13 +148,31 @@ export default {
   },
   created() {
     this.localCondition = JSON.parse(JSON.stringify(this.condition));
+
+    // Check if field already has a value when initializing
+    if (this.localCondition.value && this.localCondition.value.length > 0) {
+      // If a value exists, validate it but don't mark as touched yet
+      this.validateField();
+    }
   },
   methods: {
     onFieldChange() {
       // Reset value when field changes
       this.localCondition.value = '';
       this.validationError = null;
+      this.isTouched = false;
       this.emitUpdateAfterDelay();
+    },
+
+    onFieldBlur() {
+      this.isTouched = true;
+      this.validateField();
+    },
+
+    onFieldInput() {
+      if (this.isTouched) {
+        this.validateField();
+      }
     },
 
     validateField() {
@@ -144,14 +184,14 @@ export default {
       }
       // Basic validation - required field
       else if (!this.localCondition.value && this.localCondition.value !== 0) {
-        this.validationError = 'This field is required';
+        this.validationError = this.$t('validation.required');
       }
 
       return !this.validationError;
     },
 
     emitUpdateAfterDelay() {
-      // Use setTimeout to break potential recursive update cycles
+      // Use setTimeout to break potential recursive update loops
       setTimeout(() => {
         this.$emit('update:condition', JSON.parse(JSON.stringify(this.localCondition)));
       }, 0);

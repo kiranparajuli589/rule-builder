@@ -1,4 +1,3 @@
-<!-- src/components/gaius-rewrite/RuleList.vue -->
 <template>
   <div class="rule-list">
     <div class="rule-list__toolbar">
@@ -7,15 +6,16 @@
         {{ $t('domain.CreateRule') }}
       </a-button>
 
-      <a-input-search
-        v-model="search"
-        :placeholder="$t('Search')"
-        :allow-clear="true"
-        @change="handleSearch"
-        @search="handleSearch"
-      >
-        <a-button slot="enterButton" icon="search" />
-      </a-input-search>
+      <div class="search-container">
+        <a-input-search
+          v-model="searchQuery"
+          :placeholder="$t('Search')"
+          :allow-clear="true"
+          @search="applySearch"
+        >
+          <a-button slot="enterButton" icon="search" />
+        </a-input-search>
+      </div>
     </div>
 
     <div class="rule-list__card">
@@ -48,7 +48,7 @@
             <td>
               <a-switch
                 :checked="rule.enabled"
-                @change="$emit('toggle-status', rule, configKey)"
+                @change="(checked) => $emit('toggle-status', rule, configKey, checked)"
               >
                 <a-icon slot="checkedChildren" type="check" />
                 <a-icon slot="unCheckedChildren" type="close" />
@@ -57,7 +57,7 @@
           </tr>
           <tr v-if="filteredRules.length === 0">
             <td colspan="4" class="empty-message">
-              {{ emptyText }}
+              {{ activeSearch ? $t('domain.NoSearchResults') : emptyText }}
             </td>
           </tr>
           </tbody>
@@ -86,10 +86,14 @@ export default {
   },
   data() {
     return {
+      searchQuery: '',
       search: '',
     };
   },
   computed: {
+    activeSearch() {
+      return this.search !== '';
+    },
     filteredRules() {
       if (!this.search) {
         return this.rules;
@@ -97,14 +101,14 @@ export default {
 
       const searchTerm = this.search.toLowerCase();
       return this.rules.filter(rule => {
-        return rule.name.toLowerCase().includes(searchTerm);
+        return rule.name && rule.name.toLowerCase().includes(searchTerm);
       });
     }
   },
   methods: {
-    handleSearch() {
-      // Method intentionally left empty - the filtered rules are computed
-    }
+    applySearch() {
+      this.search = this.searchQuery.trim();
+    },
   }
 };
 </script>
@@ -123,11 +127,25 @@ export default {
     gap: 1rem;
     flex-wrap: wrap;
 
-    .ant-input-search {
+    .search-container {
       flex: 1;
       max-width: 300px;
       position: relative;
-      display: flex;
+
+      .ant-input-search {
+        width: 100%;
+        display: flex;
+      }
+
+      .clear-button {
+        margin-left: 4px;
+        border: none;
+        background: transparent;
+
+        &:hover {
+          color: #1890ff;
+        }
+      }
     }
   }
 
@@ -141,18 +159,27 @@ export default {
 
   .table-container {
     width: 100%;
-    max-height: 300px; // Set max height to 300px
-    overflow-y: auto; // Enable vertical scrolling
-    overflow-x: auto; // Enable horizontal scrolling
-    
+    max-height: 300px;
+    overflow-y: auto;
+    overflow-x: auto;
+
     scrollbar-width: thin;
+
+    @media screen and (min-width: 600px) and (max-width: 1400px) {
+      max-width: 512px;
+    }
+
+    @media screen and (max-width: 768px) {
+      max-width: 100%;
+    }
   }
 
   .rule-table {
     width: 100%;
+    min-width: 600px;
     border-collapse: collapse;
     font-size: 14px;
-    table-layout: fixed; // Helps with column widths
+    table-layout: fixed;
 
     th, td {
       padding: 12px 16px;
@@ -164,10 +191,10 @@ export default {
       background-color: #f8f9fa;
       font-weight: 600;
       color: $colorText;
-      position: sticky; // Make header sticky
-      top: 0; // Stick to the top
-      z-index: 1; // Ensure header stays above other content
-      box-shadow: 0 1px 0 0 var(--border-color); // Add bottom border to header
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      box-shadow: 0 1px 0 0 var(--border-color);
     }
 
     tr:hover {
@@ -185,34 +212,7 @@ export default {
   .action-buttons {
     display: flex;
     gap: 8px;
-    flex-wrap: wrap; // Allow buttons to wrap if needed
-  }
-}
-
-@media (max-width: 768px) {
-  .rule-list {
-    &__toolbar {
-      flex-direction: column;
-
-      .search-container {
-        max-width: 100%;
-      }
-    }
-
-    &__card {
-      max-width: 100%; // Allow full width on mobile
-    }
-
-    .action-buttons {
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .rule-table {
-      th, td {
-        padding: 8px 12px;
-      }
-    }
+    flex-wrap: wrap;
   }
 }
 </style>

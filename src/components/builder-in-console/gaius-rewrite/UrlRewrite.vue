@@ -19,13 +19,14 @@
               </span>
             </div>
 
-            <a-icon
-              type="down"
+            <span
               :class="{
                 'rotate-180': accordion.show,
                 'rotate-0': !accordion.show,
               }"
-            />
+            >
+              <img src="/icons/arrow_circle_down.svg" alt="Toggle" />
+            </span>
           </div>
           <div class="subtitle">
             <p>{{ accordion.description }}</p>
@@ -43,7 +44,7 @@
               @edit="handleEditRule($event, accordion)"
               @delete="handleDeleteRule"
               @toggle-status="handleToggleStatus"
-              :empty-text="$t('domain.noRules')"
+              :empty-text="accordion.meta.emptyText"
             />
           </div>
         </transition>
@@ -58,6 +59,7 @@
 </template>
 
 <script>
+import { Modal } from "ant-design-vue";
 import { mapActions } from "vuex";
 import { REWRITE_RULES } from "@/utilities/constants";
 import RuleList from "./RuleList.vue";
@@ -91,8 +93,9 @@ export default {
           show: false,
           meta: {
             configKey: REWRITE_RULES.PATH,
-            replacePatternType: 'standard'
-          }
+            replacePatternType: 'standard',
+            emptyText: this.$t("domain.PathRewriteEmptyRules")
+          },
         },
         {
           name: this.$t("domain.QueryRewrite"),
@@ -106,8 +109,9 @@ export default {
             primaryLabel: this.$t('Name') + '*',
             primaryPlaceholder: "param1",
             addButtonLabel: this.$t('domain.AddParameter'),
-            replacePatternType: 'parameters'
-          }
+            replacePatternType: 'parameters',
+            emptyText: this.$t("domain.QueryRewriteEmptyRules")
+          },
         },
         {
           name: this.$t("domain.HeaderRewrite"),
@@ -121,8 +125,9 @@ export default {
             primaryLabel: `${this.$t('Name')}*`,
             primaryPlaceholder: "header1",
             addButtonLabel: this.$t('domain.AddHeader'),
-            replacePatternType: 'parameters'
-          }
+            replacePatternType: 'parameters',
+            emptyText: this.$t("domain.HeaderRewriteEmptyRules")
+          },
         }
       ]
     };
@@ -169,37 +174,48 @@ export default {
     },
 
     handleDeleteRule(rule, configKey) {
-      if (confirm(this.$t('domain.DeleteRuleConfirmation'))) {
-        // Create a copy of the rules array
-        const updatedRules = [...this.getRules(configKey)];
-        const index = updatedRules.findIndex(r => r.id === rule.id);
+      // if (confirm(this.$t('domain.DeleteRuleConfirmation'))) {
+      //   const updatedRules = [...this.getRules(configKey)];
+      //   const index = updatedRules.findIndex(r => r.id === rule.id);
+      //
+      //   if (index !== -1) {
+      //     updatedRules.splice(index, 1);
+      //     this.updateRules(updatedRules, configKey);
+      //   }
+      // }
+      Modal.confirm({
+        title: this.$t('ruleBuilder.DeleteRule'),
+        content: this.$t('ruleBuilder.DeleteRuleConfirmation'),
+        centered: true,
+        onOk: () => {
+          const updatedRules = [...this.getRules(configKey)];
+          const index = updatedRules.findIndex(r => r.id === rule.id);
 
-        if (index !== -1) {
-          updatedRules.splice(index, 1);
-          this.updateRules(updatedRules, configKey);
+          if (index !== -1) {
+            updatedRules.splice(index, 1);
+            this.updateRules(updatedRules, configKey);
+          }
         }
-      }
+      });
     },
 
-    handleToggleStatus(rule, configKey) {
-      // Create a copy of the rules array
+    handleToggleStatus(rule, configKey, checked) {
       const updatedRules = [...this.getRules(configKey)];
       const index = updatedRules.findIndex(r => r.id === rule.id);
 
       if (index !== -1) {
         updatedRules[index] = {
           ...updatedRules[index],
-          enabled: !updatedRules[index].enabled
+          enabled: checked
         };
         this.updateRules(updatedRules, configKey);
       }
     },
 
     submitRule(rule) {
-      const configKey = rule.configKey;
+      const configKey = rule?.meta?.configKey;
       const rules = [...this.getRules(configKey)];
 
-      // Check if we're updating or creating
       const existingIndex = rules.findIndex(r => r.id === rule.id);
 
       if (existingIndex !== -1) {
@@ -216,16 +232,11 @@ export default {
     },
 
     updateRules(rules, configKey) {
-      // Create a copy of the current value
-      const updatedValue = {
-        ...this.value,
-        config: {
-          ...(this.value.config || {}),
-          [configKey]: rules
-        }
-      };
-
-      this.$emit('input', updatedValue);
+      if (!configKey) {
+        return;
+      }
+      
+      this.$emit('update:input', { values: rules, configKey });
     },
 
     generateId() {
@@ -241,6 +252,7 @@ export default {
   flex-direction: column;
   gap: 16px;
   width: 100%;
+  min-height: 64vh;
   .accordion {
     width:  100%;
   }

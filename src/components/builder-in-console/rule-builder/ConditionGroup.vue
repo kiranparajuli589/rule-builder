@@ -1,4 +1,3 @@
-<!-- src/components/rule-builder/ConditionGroup.vue -->
 <template>
   <div
     class="group-container"
@@ -129,7 +128,7 @@
 <script>
 import SelectDropdown from "@/components/SelectDropdown.vue";
 import ConditionInputs from "./ConditionInputs.vue";
-import ConditionService from "./ConditionService";
+import ConditionService, { CONDITION_OPERATOR, JOIN_OPERATOR, RULE_FIELDS } from "./ConditionService";
 
 export default {
   name: 'ConditionGroup',
@@ -155,7 +154,7 @@ export default {
     return {
       isCollapsed: false,
       localGroup: null,
-      localJoinOperator: '&&', // Local join operator that controls all joins in the group
+      localJoinOperator: JOIN_OPERATOR.AND,
       joinOperators: ConditionService.joinOperators,
       maxDepthLimit: 3
     };
@@ -195,7 +194,6 @@ export default {
     group: {
       immediate: true,
       handler(newValue) {
-        // Only update local if different to prevent loops
         if (!this.localGroup || JSON.stringify(newValue) !== JSON.stringify(this.localGroup)) {
           this.localGroup = JSON.parse(JSON.stringify(newValue));
           // Initialize localJoinOperator from group
@@ -253,10 +251,7 @@ export default {
     },
 
     onJoinOperatorChange(value) {
-      // Update the local join operator
       this.localJoinOperator = value;
-
-      // Update the group's join operator
       this.localGroup.joinOperator = value;
 
       // Always apply the same operator to all join points within this group
@@ -287,14 +282,13 @@ export default {
     createNewCondition() {
       return {
         id: '_' + Math.random().toString(36).substr(2, 9),
-        field: 'req.uri.path',
-        operator: '==',
+        field: RULE_FIELDS.URI_PATH,
+        operator: CONDITION_OPERATOR.EQUALS,
         value: '',
         isGroup: false
       };
     },
 
-    // New method to add a condition within the group
     addCondition() {
       if (!this.localGroup.conditions) {
         this.localGroup.conditions = [];
@@ -320,7 +314,7 @@ export default {
       const nestedGroup = {
         id: '_' + Math.random().toString(36).substr(2, 9),
         isGroup: true,
-        joinOperator: this.localGroup.joinOperator || '&&',
+        joinOperator: this.localGroup.joinOperator || JOIN_OPERATOR.AND,
         conditions: JSON.parse(JSON.stringify(this.localGroup.conditions))
       };
 
@@ -331,8 +325,8 @@ export default {
       ];
 
       // Update join operator
-      this.localGroup.joinOperator = '&&';
-      this.localJoinOperator = '&&';
+      this.localGroup.joinOperator = JOIN_OPERATOR.AND;
+      this.localJoinOperator = JOIN_OPERATOR.AND;
     },
 
     addNestedGroup() {
@@ -351,7 +345,7 @@ export default {
         const newGroup = {
           id: '_' + Math.random().toString(36).substr(2, 9),
           isGroup: true,
-          joinOperator: '&&',
+          joinOperator: JOIN_OPERATOR.AND,
           conditions: [
             JSON.parse(JSON.stringify(lastCondition)),
             this.createNewCondition()
@@ -368,7 +362,7 @@ export default {
         const newGroup = {
           id: '_' + Math.random().toString(36).substr(2, 9),
           isGroup: true,
-          joinOperator: '&&',
+          joinOperator: JOIN_OPERATOR.AND,
           conditions: [
             this.createNewCondition(),
             this.createNewCondition()

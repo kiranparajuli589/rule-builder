@@ -61,7 +61,7 @@
               <td colspan="4">
                 <div class="path_rewrite__empty">
                   <simple-empty>
-                    <span slot="description">{{$t('domain.noRules')}}</span>
+                    <span slot="description">{{meta.emptyText}}</span>
                   </simple-empty>
                 </div>
               </td>
@@ -98,19 +98,13 @@ export default  {
     }
   },
   created() {
-    console.log(this.config, this.meta)
     if (this.config && this.config.length > 0) {
       // this.rules = this.config;
     }
   },
   computed: {
     rules() {
-      // return this.config || [];
-      return [
-        { name: 'Rule 1', action: 'Rewrite', status: 'Enabled' },
-        { name: 'Rule 2', action: 'Redirect', status: 'Disabled' },
-        { name: 'Rule 3', action: 'Rewrite', status: 'Enabled' },
-      ]
+      return this.config || [];
     },
     filteredRules() {
       if (this.search) {
@@ -123,7 +117,7 @@ export default  {
     tableColumns() {
       return [
         {
-          title: this.$t('s.n.'),
+          title: this.$t('ruleBuilder.sn'),
           dataIndex: 'sn',
           key: 'sn',
           width: 'fit-content',
@@ -158,11 +152,9 @@ export default  {
     handleSearch() {
       // Implement search logic here
     },
-    handleRuleStatusToggle(rule) {
-      // Implement rule status toggle logic here
-      // For example, you can update the rule's status in the config
-      rule.enabled = !rule.enabled;
-      // this.$emit('update:config', this.config);
+    handleRuleStatusToggle(checked, rule) {
+      rule.enabled = checked;
+      this.$emit('update:config', this.config);
     },
     handleCreateRuleClick() {
       console.log(this.meta)
@@ -172,7 +164,6 @@ export default  {
       })
     },
     handleEditRuleClick(rule) {
-      // this.setRule(rule)
       this.openRuleBuilder({
         rule: {
           name: rule.name,
@@ -191,11 +182,10 @@ export default  {
       })
     },
     handleDeleteRuleClick(rule) {
-      // Implement delete rule logic here
-      // For example, you can remove the rule from the config
-      this.rules = this.rules.filter(r => r !== rule);
-      // this.$emit('update:config', this.config);
-    },
+      // Remove the rule from the config
+      const updatedRules = this.rules.filter(r => r !== rule);
+      this.$emit('update:config', updatedRules);
+    }
   }
 }
 </script>

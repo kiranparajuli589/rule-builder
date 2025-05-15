@@ -1,4 +1,3 @@
-<!-- src/components/rule-builder/CreatePatternBuilder.vue -->
 <template>
   <div class="create-pattern-builder">
     <div
@@ -23,6 +22,7 @@
         @remove="removeCondition(index)"
         @update:condition="updateCondition(index, $event)"
         class="condition-row"
+        :show-labels="localConditions.length <= 1"
       />
 
       <div v-if="index < localConditions.length - 1" class="join-operator-row">
@@ -77,7 +77,7 @@
 <script>
 import SelectDropdown from "@/components/SelectDropdown.vue";
 import ConditionInputs from "./ConditionInputs.vue";
-import ConditionService from "./ConditionService";
+import ConditionService, { CONDITION_OPERATOR, JOIN_OPERATOR, RULE_FIELDS } from "./ConditionService";
 
 export default {
   name: 'CreatePatternBuilder',
@@ -142,15 +142,15 @@ export default {
       // Initialize join operators
       this.joinOperators = [];
       for (let i = 0; i < this.localConditions.length - 1; i++) {
-        this.joinOperators.push('&&'); // Default to AND
+        this.joinOperators.push(JOIN_OPERATOR.AND); // Default to AND
       }
     },
 
     createNewCondition() {
       return {
         id: '_' + Math.random().toString(36).substr(2, 9),
-        field: 'req.uri.path',
-        operator: '==',
+        field: RULE_FIELDS.URI_PATH,
+        operator: CONDITION_OPERATOR.EQUALS,
         value: '',
         isGroup: false
       };
@@ -216,9 +216,12 @@ export default {
       // Add a new condition at the top level
       this.localConditions.push(this.createNewCondition());
 
-      // If we now have 2+ conditions, add a join operator
+      // If we now have 2+ conditions, add a join operator similar to the last one
       if (this.localConditions.length > 1) {
-        this.joinOperators.push('&&');
+        const lastJoinOperator = this.joinOperators[this.joinOperators.length - 1];
+        this.joinOperators.push(lastJoinOperator || JOIN_OPERATOR.AND);
+      } else {
+        this.joinOperators.push(JOIN_OPERATOR.AND);
       }
 
       this.emitUpdateAfterDelay();
@@ -266,7 +269,7 @@ export default {
         const newGroup = {
           id: '_' + Math.random().toString(36).substr(2, 9),
           isGroup: true,
-          joinOperator: '&&',
+          joinOperator: JOIN_OPERATOR.AND,
           conditions: [
             JSON.parse(JSON.stringify(lastCondition)),
             this.createNewCondition()
@@ -290,7 +293,7 @@ export default {
 
       // Add a join operator if needed
       if (this.localConditions.length > 1) {
-        this.joinOperators.push('&&');
+        this.joinOperators.push(JOIN_OPERATOR.AND);
       }
 
       this.emitUpdateAfterDelay();
@@ -306,7 +309,7 @@ export default {
       const groupedConditions = {
         id: '_' + Math.random().toString(36).substr(2, 9),
         isGroup: true,
-        joinOperator: this.joinOperators[0] || '&&',
+        joinOperator: this.joinOperators[0] || JOIN_OPERATOR.AND,
         conditions: JSON.parse(JSON.stringify(this.localConditions))
       };
 
@@ -318,41 +321,12 @@ export default {
       this.localConditions.push(this.createNewCondition());
 
       // Add join operator
-      this.joinOperators.push('&&');
+      this.joinOperators.push(JOIN_OPERATOR.AND);
 
       this.emitUpdateAfterDelay();
     },
 
-    groupFirstTwoConditions() {
-      if (this.localConditions.length >= 3 && !this.wouldExceedDepthLimit()) {
-        // Group first two conditions
-        const groupedConditions = {
-          id: '_' + Math.random().toString(36).substr(2, 9),
-          isGroup: true,
-          joinOperator: this.joinOperators[0],
-          conditions: [
-            JSON.parse(JSON.stringify(this.localConditions[0])),
-            JSON.parse(JSON.stringify(this.localConditions[1]))
-          ]
-        };
-
-        // Create new conditions array with the group and the third condition
-        const thirdCondition = this.localConditions[2];
-        this.localConditions = [groupedConditions, thirdCondition];
-
-        // Update join operators
-        if (this.joinOperators.length > 1) {
-          this.joinOperators = [this.joinOperators[1]];
-        } else {
-          this.joinOperators = ['&&'];
-        }
-
-        this.emitUpdateAfterDelay();
-      }
-    },
-
     emitUpdateAfterDelay() {
-      // Use setTimeout to break potential recursive update cycles
       setTimeout(() => {
         this.$emit('update:conditions', JSON.parse(JSON.stringify(this.localConditions)));
       }, 0);

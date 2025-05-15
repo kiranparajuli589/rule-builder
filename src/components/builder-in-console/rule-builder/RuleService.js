@@ -1,4 +1,4 @@
-import ConditionService from './ConditionService.js';
+import ConditionService, { CONDITION_OPERATOR, RULE_FIELDS } from './ConditionService.js';
 
 export default {
   DEPTH_LIMIT: 3, // Maximum nesting depth allowed
@@ -18,6 +18,10 @@ export default {
   get rewriteFunctions() {
     return ConditionService.rewriteFunctions;
   },
+  
+  get replacePatternFunctions() {
+    return ConditionService.replacePatternFunctions;
+  },
 
   // Improved calculateDepth method that counts the current nesting depth correctly
   calculateDepth(conditions) {
@@ -34,21 +38,6 @@ export default {
     }
 
     return maxDepth;
-  },
-
-  // Calculate effective depth taking into account the current nesting level
-  calculateEffectiveDepth(conditions, currentLevel = 0) {
-    return currentLevel + this.calculateDepth(conditions);
-  },
-
-  // Check if adding a group at the given location would exceed the depth limit
-  wouldExceedDepthLimit(conditions, nestingLevel = 0) {
-    // If we're already at the limit, adding more would exceed it
-    if (nestingLevel >= this.DEPTH_LIMIT) return true;
-
-    // Calculate the current max depth and add 1 for the new level we want to add
-    const currentMaxDepth = this.calculateDepth(conditions);
-    return (nestingLevel + currentMaxDepth + 1) > this.DEPTH_LIMIT;
   },
 
   // Find and report the deepest group in a rule
@@ -218,14 +207,6 @@ export default {
     return '';
   },
 
-  formatReadableParametersList(parameters) {
-    if (!parameters || parameters.length === 0) return '';
-
-    return parameters.map(param =>
-      `${param.name} = "${param.value}"`
-    ).join(', ');
-  },
-
   generateId() {
     return '_' + Math.random().toString(36).substr(2, 9);
   },
@@ -233,8 +214,8 @@ export default {
   newCondition() {
     return {
       id: this.generateId(),
-      field: 'req.uri.path',
-      operator: '==',
+      field: RULE_FIELDS.URI_PATH,
+      operator: CONDITION_OPERATOR.EQUALS,
       value: '',
       isGroup: false
     };
@@ -253,19 +234,10 @@ export default {
         conditions: [this.newCondition()]
       },
       replace_pattern: {
-        field: 'req.uri.path',
+        field: RULE_FIELDS.URI_PATH,
         value: '',
         withFn: false
       }
-    };
-  },
-
-  initializeParameterRule() {
-    return {
-      create_pattern: {
-        conditions: [this.newCondition()]
-      },
-      parameters: [this.newParameter()]
     };
   },
 
@@ -404,9 +376,4 @@ export default {
     }
     return flat;
   },
-
-  // Reset a rule that has become too complex to a simpler state
-  resetComplexRule() {
-    return this.initializeRule();
-  }
 };

@@ -8,32 +8,31 @@ const countryOptions = countriesJSON.map(country => ({
 
 export const JOIN_OPERATOR = {
   AND: '&&',
-    OR: '||'
+  OR: '||'
 }
 export const REWRITE_FUNCTIONS = {
   CONCAT: 'concat',
-    SUBSTRING: 'substring',
-    REPLACE: 'replace',
-    LOWERCASE: 'lowercase'
+  SUBSTRING: 'substring',
+  REPLACE: 'replace',
+  LOWERCASE: 'lowercase'
 }
 export const RULE_FIELDS = {
   URI_PATH: 'req.uri.path',
-    METHOD: 'req.method',
-    HOST: 'req.headers.host',
-    USER_AGENT: 'req.headers.UserAgent',
-    COUNTRY: 'req.geo.country',
-    STATUS_CODE: 'req.status'
+  METHOD: 'req.method',
+  HOST: 'req.headers.host',
+  USER_AGENT: 'req.headers.UserAgent',
+  COUNTRY: 'req.geo.country',
+  STATUS_CODE: 'req.status'
 }
 export const CONDITION_OPERATOR = {
   EQUALS: '==',
-    NOT_EQUALS: '!=',
-    CONTAINS: '~~',
-    STARTS_WITH: 'starts_with',
-    ENDS_WITH: 'ends_with'
+  NOT_EQUALS: '!=',
+  CONTAINS: '~~',
+  STARTS_WITH: 'starts_with',
+  ENDS_WITH: 'ends_with'
 }
 
 export default {
-  
   fields: [
     {
       label: $t('ruleBuilder.uriPath'),
@@ -148,4 +147,16 @@ export default {
     { value: REWRITE_FUNCTIONS.REPLACE, label: $t('ruleBuilder.replace'), description: $t('ruleBuilder.replaceDescription') },
     { value: REWRITE_FUNCTIONS.LOWERCASE, label: $t('ruleBuilder.lowercase'), description: $t('ruleBuilder.lowercaseDescription') },
   ],
+  replacePatternFunctions: [
+    {
+      value: REWRITE_FUNCTIONS.CONCAT,
+      label: $t('ruleBuilder.concat'),
+      description: $t('ruleBuilder.concatDescription')
+    },
+    {
+      value: REWRITE_FUNCTIONS.SUBSTRING,
+      label: $t('ruleBuilder.substring'),
+      description: $t('ruleBuilder.substringDescription')
+    },
+  ]
 }

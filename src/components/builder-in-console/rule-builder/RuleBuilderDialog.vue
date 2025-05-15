@@ -24,9 +24,12 @@
         <CInput
           v-model="localRule.name"
           :placeholder="$t('ruleBuilder.RuleNamePlaceholder')"
-          :label="$t('ruleBuilder.RuleName')"
+          :label="$t('ruleBuilder.RuleName') + '*'"
           :required="true"
           :description="$t('ruleBuilder.RuleNameDescription')"
+          :is-valid="isNameTouched ? !!localRule.name : undefined"
+          :invalid-feedback="$t('ruleBuilder.RuleNameRequired')"
+          @blur="isNameTouched = true"
         />
 
         <div class="section">
@@ -42,7 +45,10 @@
 
         <!-- Dynamic component for replace patterns -->
         <div class="section" v-if="replacePatternType === 'standard'">
-          <h2>{{ $t('ruleBuilder.ReplacePattern') }}</h2>
+          <header>
+            <h2>{{ $t('ruleBuilder.ReplacePattern') }}</h2>
+            <p>{{ $t('ruleBuilder.ReplacePatternDescription') }}</p>
+          </header>
 
           <!-- Standard replace pattern -->
           <replace-pattern-builder
@@ -86,6 +92,9 @@
           <pre>{{ JSON.stringify(localRule, null, 2) }}</pre>
         </div>
       </div>
+      
+      
+      <div class="bottom-space" />
     </form>
   </a-modal>
 </template>
@@ -97,6 +106,7 @@ import TipsCard from "./TipsCard.vue";
 import CreatePatternBuilder from "./CreatePatternBuilder.vue";
 import ReplacePatternBuilder from "./ReplacePatternBuilder.vue";
 import ParameterRewrite from "./ParameterRewrite.vue";
+import { Modal } from "ant-design-vue";
 
 export default {
   name: "RuleBuilderDialog",
@@ -108,9 +118,14 @@ export default {
   },
   data() {
     return {
+      originalRule: null,
       showDepthWarning: false,
       localRule: null,
-      isEnforcingDepthLimit: false
+      isEnforcingDepthLimit: false,
+      isFormDirty: false,
+      initialRuleState: null,
+      
+      isNameTouched: false,
     };
   },
   computed: {
@@ -127,7 +142,11 @@ export default {
         return this.getDialogState;
       },
       set(value) {
-        this.setDialogState(value);
+        if (!value) {
+          this.onClose()
+        } else {
+          this.setDialogState(value);
+        }
       }
     },
 
@@ -175,12 +194,19 @@ export default {
     rule: {
       immediate: true,
       handler(newVal) {
+        this.originalRule = newVal ? JSON.parse(JSON.stringify(newVal)) : null;
+
         if (newVal) {
           this.localRule = JSON.parse(JSON.stringify(newVal));
         } else {
           this.localRule = RuleService.initializeRule();
         }
-        console.log(this.localRule);
+
+        // Set the initial state for dirty checking - this is the key fix
+        this.$nextTick(() => {
+          this.initialRuleState = JSON.stringify(this.localRule);
+          this.isFormDirty = false;
+        });
       }
     },
     currentDepth(newDepth) {
@@ -192,6 +218,15 @@ export default {
       // Check if depth limit exceeded
       if (newDepth > RuleService.DEPTH_LIMIT && !this.isEnforcingDepthLimit) {
         this.enforceDepthLimit();
+      }
+    },
+    localRule: {
+      deep: true,
+      handler(newVal) {
+        if (newVal) {
+          const currentState = JSON.stringify(newVal);
+          this.isFormDirty = currentState !== this.initialRuleState;
+        }
       }
     }
   },
@@ -225,6 +260,9 @@ export default {
 
       // Success! Emit event with formatted rule
       this.$emit('rule-submit', this.formatRuleForSubmission());
+
+      // After successful submit, reset the dirty state
+      this.isFormDirty = false;
       this.showDialog = false;
     },
 
@@ -259,19 +297,39 @@ export default {
         delete formattedRule.parameters;
       }
 
-      return formattedRule;
+      return {
+        ...formattedRule,
+        meta: this.meta,
+      };
     },
 
     resetForm() {
-      if (confirm(this.$t('ruleBuilder.ResetConfirmation'))) {
-        this.localRule = RuleService.initializeRule();
-        this.localRule.name = '';
-        this.showDepthWarning = false;
-      }
+      Modal.confirm({
+        title: this.$t('ruleBuilder.ResetRule'),
+        content: this.$t('ruleBuilder.ResetConfirmation'),
+        okText: this.$t('Yes'),
+        cancelText: this.$t('No'),
+        okType: 'danger',
+        iconType: 'reload',
+        centered: true,
+        onOk: () => {
+          this.localRule = JSON.parse(JSON.stringify(this.originalRule));
+          this.isFormDirty = false;
+        }
+      })
     },
 
     onClose() {
-      this.setRule(null);
+      this.handleBeforeClose(() => {
+        this.setRule(null);
+        this.isFormDirty = false;
+        this.initialRuleState = null;
+        this.setDialogState(false);
+        this.localRule = null;
+        this.showDepthWarning = false;
+        this.isEnforcingDepthLimit = false;
+        this.isNameTouched = false;
+      });
     },
 
     enforceDepthLimit() {
@@ -289,6 +347,24 @@ export default {
         });
       }
     },
+
+    handleBeforeClose(done) {
+      if (this.isFormDirty) {
+        Modal.confirm({
+          title: this.$t('ruleBuilder.UnsavedChanges'),
+          content: this.$t('ruleBuilder.UnsavedChangesWarning'),
+          okText: this.$t('Yes'),
+          okType: 'danger',
+          cancelText: this.$t('No'),
+          centered: true,
+          onOk: () => {
+            done();
+          }
+        });
+      } else {
+        done(); // No changes, just close
+      }
+    }
   }
 };
 </script>
