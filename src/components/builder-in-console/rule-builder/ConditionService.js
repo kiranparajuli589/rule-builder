@@ -1,3 +1,4 @@
+import { $i18n as $t } from "@/plugins/i18n";
 import countriesJSON from "@/views/domain/CountrySelector/countries.json"
 
 const countryOptions = countriesJSON.map(country => ({
@@ -5,19 +6,47 @@ const countryOptions = countriesJSON.map(country => ({
   value: country.code
 }));
 
+export const JOIN_OPERATOR = {
+  AND: '&&',
+    OR: '||'
+}
+export const REWRITE_FUNCTIONS = {
+  CONCAT: 'concat',
+    SUBSTRING: 'substring',
+    REPLACE: 'replace',
+    LOWERCASE: 'lowercase'
+}
+export const RULE_FIELDS = {
+  URI_PATH: 'req.uri.path',
+    METHOD: 'req.method',
+    HOST: 'req.headers.host',
+    USER_AGENT: 'req.headers.UserAgent',
+    COUNTRY: 'req.geo.country',
+    STATUS_CODE: 'req.status'
+}
+export const CONDITION_OPERATOR = {
+  EQUALS: '==',
+    NOT_EQUALS: '!=',
+    CONTAINS: '~~',
+    STARTS_WITH: 'starts_with',
+    ENDS_WITH: 'ends_with'
+}
+
 export default {
+  
   fields: [
     {
-      label: 'URI Path',
-      value: 'req.uri.path',
-      description: 'Requested URI path',
+      label: $t('ruleBuilder.uriPath'),
+      value: RULE_FIELDS.URI_PATH,
+      description: $t('ruleBuilder.uriPathDescription'),
     },
     {
-      label: 'Method',
-      value: 'req.method',
-      description: 'Request HTTP method',
+      label: $t('ruleBuilder.method'),
+      value: RULE_FIELDS.METHOD,
+      description: $t('ruleBuilder.methodDescription'),
       meta: {
         type: 'select',
+        placeholder: $t('ruleBuilder.selectHttpMethod'),
         options: [
           "GET",
           "POST",
@@ -29,29 +58,30 @@ export default {
       }
     },
     {
-      label: 'Host',
-      value: 'req.headers["host"]',
-      description: 'Request Host header',
+      label: $t('ruleBuilder.host'),
+      value: RULE_FIELDS.HOST,
+      description: $t('ruleBuilder.hostDescription'),
     },
     {
-      label: 'User Agent',
-      value: 'req.headers["user-agent"]',
-      description: 'User-Agent header',
+      label: $t('ruleBuilder.userAgent'),
+      value: RULE_FIELDS.USER_AGENT,
+      description: $t('ruleBuilder.userAgentDescription'),
     },
     {
-      label: 'Country',
-      value: 'req.geo.country',
-      description: 'Country of the request origin',
+      label: $t('ruleBuilder.country'),
+      value: RULE_FIELDS.COUNTRY,
+      description: $t('ruleBuilder.countryDescription'),
       meta: {
         type: 'select',
         options: countryOptions
       }
     },
     {
-      label: 'Status Code',
-      value: 'req.status',
-      description: 'HTTP status code of the response',
+      label: $t('ruleBuilder.statusCode'),
+      value: RULE_FIELDS.STATUS_CODE,
+      description: $t('ruleBuilder.statusCodeDescription'),
       meta: {
+        placeholder: $t('ruleBuilder.enterStatusCode'),
         type: 'number',
         min: 100,
         max: 599,
@@ -83,51 +113,39 @@ export default {
   ],
   operators: [
     {
-      label: 'Equals',
-      value: '==',
-      description: 'Checks if the field is equal to the value'
+      label: $t('ruleBuilder.equals'),
+      value: CONDITION_OPERATOR.EQUALS,
+      description: $t('ruleBuilder.equalsDescription')
     },
     {
-      label: 'Not Equals',
-      value: '!=',
-      description: 'Checks if the field is not equal to the value'
+      label: $t('ruleBuilder.notEquals'),
+      value: CONDITION_OPERATOR.NOT_EQUALS,
+      description: $t('ruleBuilder.notEqualsDescription')
     },
     {
-      label: 'Contains',
-      value: '~~',
-      description: 'Checks if the field contains the value'
+      label: $t('ruleBuilder.contains'),
+      value: CONDITION_OPERATOR.CONTAINS,
+      description: $t('ruleBuilder.containsDescription')
     },
     {
-      label: 'Starts With',
-      value: 'starts_with',
-      description: 'Checks if the field starts with the value'
+      label: $t('ruleBuilder.startsWith'),
+      value: CONDITION_OPERATOR.STARTS_WITH,
+      description: $t('ruleBuilder.startsWithDescription')
     },
     {
-      label: 'Ends With',
-      value: 'ends_with',
-      description: 'Checks if the field ends with the value'
+      label: $t('ruleBuilder.endsWith'),
+      value: CONDITION_OPERATOR.ENDS_WITH,
+      description: $t('ruleBuilder.endsWithDescription')
     }
   ],
   joinOperators: [
-    { value: "&&", label: "AND" },
-    { value: "||", label: "OR" }
+    { value: JOIN_OPERATOR.AND, label: $t('ruleBuilder.AND') },
+    { value: JOIN_OPERATOR.OR, label: $t('ruleBuilder.OR') }
   ],
   rewriteFunctions: [
-    { value: 'concat', label: 'Concatenate', description: 'Concatenates the argument to the end of the field value' },
-    { value: 'substring', label: 'Substring', description: 'Returns a subset of the field value from index 0 to the argument value' },
-    { value: 'replace', label: 'Replace', description: 'Replaces all occurrences of a string with another string' },
-    { value: 'lowercase', label: 'Lowercase', description: 'Converts the string to lowercase' }
+    { value: REWRITE_FUNCTIONS.CONCAT, label: $t('ruleBuilder.concat'), description: $t('ruleBuilder.concatDescription') },
+    { value: REWRITE_FUNCTIONS.SUBSTRING, label: $t('ruleBuilder.substring'), description: $t('ruleBuilder.substringDescription') },
+    { value: REWRITE_FUNCTIONS.REPLACE, label: $t('ruleBuilder.replace'), description: $t('ruleBuilder.replaceDescription') },
+    { value: REWRITE_FUNCTIONS.LOWERCASE, label: $t('ruleBuilder.lowercase'), description: $t('ruleBuilder.lowercaseDescription') },
   ],
-  getFieldValidationError(fieldValue, value) {
-    // Find the field definition
-    const fieldDef = this.fields.find(f => f.value === fieldValue);
-
-    // If no field definition or no validate function, consider it valid
-    if (!fieldDef || !fieldDef.validate) {
-      return undefined;
-    }
-
-    // Call the field's validate function
-    return fieldDef.validate(value);
-  },
 }

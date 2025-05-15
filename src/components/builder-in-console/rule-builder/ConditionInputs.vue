@@ -1,153 +1,161 @@
 <template>
-  <div class="">
+  <div class="condition-inputs">
     <div class="field-operator-value">
-      <SelectDropdown
-        class="field-select"
+      <select-dropdown
         :selected.sync="localCondition.field"
-        :options="RuleService.fields"
-        :placeholder="$t('selectField')"
+        :options="fields"
+        :placeholder="$t('ruleBuilder.selectField')"
+        @update:selected="onFieldChange"
         menu-width="fit-content"
-        :label="showLabels ? $t('field') : ''"
-        @update:selected="onFieldChange()"
-      />
-      <SelectDropdown
-        class="operator-select"
-        :selected.sync="localCondition.operator"
-        :options="RuleService.operators"
-        :placeholder="$t('selectOperator')"
-        menu-width="fit-content"
-        :label="showLabels ? $t('operator') : ''"
+        btn-width="245px"
       />
 
-      <template v-if="$chainer('activeField?.meta?.type') === 'select'">
-        <SelectDropdown
-          class="value-select flex-grow-1"
+      <select-dropdown
+        :selected.sync="localCondition.operator"
+        :options="operators"
+        :placeholder="$t('ruleBuilder.selectOperator')"
+        menu-width="fit-content"
+      />
+
+      <div class="flex-grow-1">
+        <select-dropdown
+          v-if="fieldMeta.type === 'select'"
           :selected.sync="localCondition.value"
-          :options="activeField.meta.options"
-          :placeholder="$t('selectValue')"
-          :label="showLabels ? $t('value') : ''"
+          :options="fieldMeta.options || []"
+          :placeholder="fieldMeta.placeholder"
         />
-      </template>
-      <template v-else-if="$chainer('activeField?.meta?.type') === 'number'">
+
         <CInput
+          v-else-if="fieldMeta.type === 'number'"
           type="number"
           v-model="localCondition.value"
-          :placeholder="$t('Values')"
+          :placeholder="fieldMeta.placeholder"
           class="value-input"
-          :min="activeField.meta.min"
-          :max="activeField.meta.max"
-          :step="activeField.meta.step"
+          :min="fieldMeta.min"
+          :max="fieldMeta.max"
+          :step="fieldMeta.step"
           required
-          :label="showLabels ? $t('value') : ''"
-          name="value"
           @blur="validateField()"
-          :description="validationError"
           :is-valid="!validationError"
+          :invalid-feedback="validationError"
         />
-      </template>
-      <template v-else>
+
         <CInput
-          type="text"
+          v-else
           v-model="localCondition.value"
-          :placeholder="$t('Values')"
+          :placeholder="$t('ruleBuilder.enterValue')"
           class="value-input"
           required
-          :label="showLabels ? $t('value') : ''"
+          @blur="validateField()"
+          :is-valid="!validationError"
+          :invalid-feedback="validationError"
         />
-      </template>
+      </div>
     </div>
 
-    <a-button
-      v-if="showRemove"
-      type="danger"
-      class="delete-btn"
-      @click="removeCondition()"
-      icon="close"
-    />
+    <div v-if="showRemove" class="action-button">
+      <a-button
+        type="danger"
+        ghost
+        class="delete-btn"
+        @click="$emit('remove')"
+      >
+        <a-icon type="delete" />
+      </a-button>
+    </div>
   </div>
 </template>
-<script>
-import { OptionalChainerMixin } from "@/mixins/OptionalChainerMixin";
 
-import RuleService from "./RuleService.js";
+<script>
+import SelectDropdown from "@/components/SelectDropdown.vue";
 import ConditionService from "./ConditionService";
 
 export default {
-  components: { 
-    SelectDropdown: () => import("@/components/SelectDropdown.vue")
+  name: 'ConditionInputs',
+  components: {
+    SelectDropdown
   },
   props: {
-    showRemove: {
-      type: Boolean,
-      required: true,
-    },
     condition: {
       type: Object,
-      required: true,
+      required: true
     },
-    showLabels: {
+    showRemove: {
       type: Boolean,
-      default: false,
+      default: false
     }
   },
-  mixins: [OptionalChainerMixin],
   data() {
     return {
-      validationError: null,
-      localCondition: JSON.parse(JSON.stringify(this.condition))
+      localCondition: null,
+      validationError: null
     };
   },
   computed: {
-    RuleService() {
-      return RuleService
+    fields() {
+      return ConditionService.fields;
     },
-    ConditionService() {
-      return ConditionService
+    operators() {
+      return ConditionService.operators;
     },
-    activeField() {
-      const options = this.RuleService.fields;
-      const selected = options.find(o => o.value === this.localCondition.field);
-      console.log("selected", selected);
-      return selected;
+    field() {
+      return this.fields.find(f => f.value === this.localCondition.field);
+    },
+    fieldMeta() {
+      return this.field ? (this.field?.meta ?? {}) : {};
     }
   },
   watch: {
     condition: {
-      handler(newValue) {
-        // Only update local data if it's different from external prop
-        // Using JSON.stringify is a simple way to deep compare objects
-        if (JSON.stringify(newValue) !== JSON.stringify(this.localCondition)) {
-          // Deep copy to avoid reference issues
-          this.localCondition = JSON.parse(JSON.stringify(newValue));
+      immediate: true,
+      handler(newVal) {
+        // Avoid infinite loops by only updating if different
+        if (!this.localCondition || JSON.stringify(newVal) !== JSON.stringify(this.localCondition)) {
+          this.localCondition = JSON.parse(JSON.stringify(newVal));
         }
-      },
-      deep: true,
-      immediate: true // Initialize on mount
+      }
     },
+
     localCondition: {
-      handler(newValue) {
-        console.log(newValue);
-        this.$emit("update:condition", JSON.parse(JSON.stringify(newValue)));
-      },
       deep: true,
+      handler(newVal) {
+        // Emit update on a delay to avoid recursive update loops
+        this.emitUpdateAfterDelay();
+      }
     }
   },
+  created() {
+    this.localCondition = JSON.parse(JSON.stringify(this.condition));
+  },
   methods: {
-    removeCondition() {
-      this.$emit("remove");
+    onFieldChange() {
+      // Reset value when field changes
+      this.localCondition.value = '';
+      this.validationError = null;
+      this.emitUpdateAfterDelay();
     },
+
     validateField() {
-      this.validationError = this.ConditionService.getFieldValidationError(
-        this.localCondition.field,
-        this.localCondition.value
-      );
+      this.validationError = null;
+
+      // Check if field has a validate function in ConditionService
+      if (this.field && this.field.validate) {
+        this.validationError = this.field.validate(this.localCondition.value);
+      }
+      // Basic validation - required field
+      else if (!this.localCondition.value && this.localCondition.value !== 0) {
+        this.validationError = 'This field is required';
+      }
 
       return !this.validationError;
     },
-    onFieldChange() {
-      this.localCondition.value = null;
-      this.validationError = null;
+
+    emitUpdateAfterDelay() {
+      // Use setTimeout to break potential recursive update cycles
+      setTimeout(() => {
+        this.$emit('update:condition', JSON.parse(JSON.stringify(this.localCondition)));
+      }, 0);
     }
-  },
-}
+  }
+};
 </script>

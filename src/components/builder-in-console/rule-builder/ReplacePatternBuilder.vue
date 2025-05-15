@@ -4,15 +4,15 @@
       <SelectDropdown
         :selected.sync="localPattern.field"
         :options="RuleService.fields"
-        :placeholder="$t('selectField')"
+        :placeholder="$t('ruleBuilder.selectField')"
         menu-width="fit-content"
         class="field-select"
-        :label="$t('field')"
+        :label="$t('ruleBuilder.field')"
       />
       <div style="padding-top: 1.7rem;">
         <CInputCheckbox
           :checked="localPattern.withFn"
-          :label="$t('useFn')"
+          :label="$t('ruleBuilder.useFn')"
           class="pattern-type-checkbox"
           @update:checked="switchType($event)"
         />
@@ -22,8 +22,8 @@
     <CInput
       v-if="!localPattern.withFn"
       class="value-section"
-      :label="$t('value')"
-      :placeholder="$t('enterReplacementValue')"
+      :label="$t('ruleBuilder.value')"
+      :placeholder="$t('ruleBuilder.enterReplacementValue')"
       v-model="localPattern.value"
       required
     />
@@ -33,14 +33,14 @@
         <SelectDropdown
           :selected.sync="localPattern.fn"
           :options="functions"
-          :placeholder="$t('selectFunction')"
+          :placeholder="$t('ruleBuilder.selectFunction')"
           menu-width="fit-content"
-          :label="$t('function')"
+          :label="$t('ruleBuilder.function')"
         />
 
         <CInput
-          :label="$t('functionArgument')"
-          :placeholder="$t('enterFunctionArgument')"
+          :label="$t('ruleBuilder.functionArgument')"
+          :placeholder="$t('ruleBuilder.enterFunctionArgument')"
           v-model="localPattern.fnArg"
           class="flex-grow-1" required
         />
@@ -77,8 +77,16 @@ export default {
         withFn: false,
       },
       functions: [
-        { value: 'concat', label: 'Concatenate', description: 'Concatenates the argument to the end of the field value' },
-        { value: 'substring', label: 'Substring', description: 'Returns a subset of the field value from index 0 to the argument value' }
+        { 
+          value: 'concat',
+          label: 'Concatenate',
+          description: this.$t('ruleBuilder.concatDescription')
+        },
+        { 
+          value: 'substring',
+          label: 'Substring',
+          description: this.$t('ruleBuilder.substringDescription')
+        }
       ]
     };
   },

@@ -1,60 +1,133 @@
 <template>
-  <div>
-    <div v-if="showTips" class="tips-card">
-      <div class="tips-header">
-        <h3>Rule Builder Tips</h3>
-        <div class="tips-controls">
-          <label class="hide-tips-label">
-            <input type="checkbox" v-model="hideTips" @change="toggleTips">
-            <span>Hide tips</span>
-          </label>
-          <button class="tips-close-btn" @click="toggleTips">×</button>
+  <div class="tipscard">
+    <transition name="curtain">
+      <div v-if="showTips" class="tipscard__container">
+        <div class="tipscard__header">
+          <h3>{{ $t('ruleBuilder.RuleBuilderTips') }}</h3>
+          <div class="tipscard__controls">
+            <a-button class="tipscard__closebtn" @click="toggleTips" type="link">
+              <CIcon name="cil-x-circle" />
+            </a-button>
+          </div>
         </div>
-      </div>
-      <div class="tips-content">
-        <div class="tip-section">
-          <h4>How to build rules</h4>
-          <ul>
-            <li>Start with a simple condition (field, operator, value)</li>
-            <li>Add a second condition and join them with AND/OR</li>
-            <li>Use "Bracket These Conditions" to group related conditions</li>
-            <li>Add groups to create complex logic (maximum 2 conditions per level)</li>
-          </ul>
+        <div class="tipscard__content">
+          <div class="tipscard__section">
+            <h4>{{ $t('ruleBuilder.HowToBuildRules') }}</h4>
+            <ul>
+              <li>{{ $t('ruleBuilder.TipStartSimple') }}</li>
+              <li>{{ $t('ruleBuilder.TipAddSecondCondition') }}</li>
+              <li>{{ $t('ruleBuilder.TipUseBrackets') }}</li>
+              <li>{{ $t('ruleBuilder.TipAddGroups') }}</li>
+            </ul>
+          </div>
+          <div class="tipscard__section">
+            <h4>{{ $t('ruleBuilder.RuleStructure') }}</h4>
+            <ul>
+              <li><strong>{{ $t('ruleBuilder.CreatePattern') }}:</strong> {{ $t('ruleBuilder.TipCreatePattern') }}</li>
+              <li><strong>{{ $t('ruleBuilder.ReplacePattern') }}:</strong> {{ $t('ruleBuilder.TipReplacePattern') }}</li>
+              <li>{{ $t('ruleBuilder.TipNestedConditions') }}</li>
+            </ul>
+          </div>
+          <div class="tipscard__section">
+            <h4>{{ $t('ruleBuilder.Operators') }}</h4>
+            <ul>
+              <li><code>==</code>: {{ $t('ruleBuilder.OperatorEquals') }}</li>
+              <li><code>!=</code>: {{ $t('ruleBuilder.OperatorNotEquals') }}</li>
+              <li><code>~~</code>: {{ $t('ruleBuilder.OperatorContains') }}</li>
+              <li><code>starts_with</code>: {{ $t('ruleBuilder.OperatorStartsWith') }}</li>
+              <li><code>ends_with</code>: {{ $t('ruleBuilder.OperatorEndsWith') }}</li>
+            </ul>
+          </div>
         </div>
-        <div class="tip-section">
-          <h4>Rule Structure</h4>
-          <ul>
-            <li><strong>Create Pattern:</strong> Defines when the rule should trigger</li>
-            <li><strong>Replace Pattern:</strong> Defines what action to take when triggered</li>
-            <li>Nested conditions are evaluated from innermost to outermost</li>
-          </ul>
-        </div>
-        <div class="tip-section">
-          <h4>Operators</h4>
-          <ul>
-            <li><code>==</code>: Equal to</li>
-            <li><code>!=</code>: Not equal to</li>
-            <li><code>~~</code>: Contains</li>
-            <li><code>starts_with</code>: String starts with</li>
-            <li><code>ends_with</code>: String ends with</li>
-          </ul>
-        </div>
-      </div>
-      <div class="tips-footer">
-        <a href="https://www.lua.org/manual/5.3/manual.html#3.4.4" target="_blank" class="tips-link">
-          <span>Lua Documentation for Conditions</span>
-          <span class="external-icon">↗</span>
-        </a>
-        <a href="#" class="tips-link">
-          <span>Rule Building Tutorial</span>
-          <span class="external-icon">↗</span>
-        </a>
-      </div>
-    </div>
 
-    <div v-else class="tips-badge" @click="toggleTips">
-      <span class="tips-badge-icon">💡</span>
-      <span class="tips-badge-text">Show Tips</span>
+        <div class="tipscard__advancedinfo">
+          <h4>{{ $t('ruleBuilder.AdvancedRuleBuilding') }}</h4>
+
+          <div class="tipscard__inforow">
+            <div class="tipscard__infoitem">
+              <div class="tipscard__infoitem__title">
+                <a-icon type="appstore" />
+                <strong>{{ $t('ruleBuilder.AddGroup') }}</strong>
+              </div>
+              <p class="tipscard__infoitem__description">{{ $t('ruleBuilder.AddGroupDescription') }}</p>
+              <div class="tipscard__infoitem__example">
+                <div class="tipscard__infoitem__example__label">{{ $t('ruleBuilder.Example') }}:</div>
+                <p class="tipscard__infoitem__example__content">{{ $t('ruleBuilder.AddGroupExample') }}</p>
+              </div>
+              <div class="tipscard__infoitem__tip">
+                <a-icon type="info-circle" />
+                <span>{{ $t('ruleBuilder.AddGroupTip') }}</span>
+              </div>
+            </div>
+
+            <div class="tipscard__infoitem">
+              <div class="tipscard__infoitem__title">
+                <a-icon type="border-outer" />
+                <strong>{{ $t('ruleBuilder.BracketConditions') }}</strong>
+              </div>
+              <p class="tipscard__infoitem__description">{{ $t('ruleBuilder.BracketConditionsDescription') }}</p>
+              <div class="tipscard__infoitem__example">
+                <div class="tipscard__infoitem__example__label">{{ $t('ruleBuilder.Example') }}:</div>
+                <p class="tipscard__infoitem__example__content">{{ $t('ruleBuilder.BracketConditionsExample') }}</p>
+              </div>
+              <div class="tipscard__infoitem__tip">
+                <a-icon type="info-circle" />
+                <span>{{ $t('ruleBuilder.BracketConditionsTip') }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="tipscard__inforow">
+            <div class="tipscard__infoitem">
+              <div class="tipscard__infoitem__title">
+                <a-icon type="fork" />
+                <strong>{{ $t('ruleBuilder.LogicalOperators') }}</strong>
+              </div>
+              <p class="tipscard__infoitem__description">{{ $t('ruleBuilder.LogicalOperatorsDescription') }}</p>
+              <div class="tipscard__infoitem__example">
+                <div class="tipscard__infoitem__example__label">{{ $t('ruleBuilder.Example') }}:</div>
+                <p class="tipscard__infoitem__example__content">{{ $t('ruleBuilder.LogicalOperatorsExample') }}</p>
+              </div>
+              <div class="tipscard__infoitem__tip">
+                <a-icon type="info-circle" />
+                <span>{{ $t('ruleBuilder.LogicalOperatorsTip') }}</span>
+              </div>
+            </div>
+
+            <div class="tipscard__infoitem">
+              <div class="tipscard__infoitem__title">
+                <a-icon type="swap" />
+                <strong>{{ $t('ruleBuilder.JoinOperatorSync') }}</strong>
+              </div>
+              <p class="tipscard__infoitem__description">{{ $t('ruleBuilder.JoinOperatorSyncDescription') }}</p>
+              <div class="tipscard__infoitem__example">
+                <div class="tipscard__infoitem__example__label">{{ $t('ruleBuilder.Example') }}:</div>
+                <p class="tipscard__infoitem__example__content">{{ $t('ruleBuilder.JoinOperatorSyncExample') }}</p>
+              </div>
+              <div class="tipscard__infoitem__tip">
+                <a-icon type="info-circle" />
+                <span>{{ $t('ruleBuilder.JoinOperatorSyncTip') }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tipscard__footer">
+          <a href="https://www.lua.org/manual/5.3/manual.html#3.4.4" target="_blank" rel="noopener" class="tipscard__link">
+            <span>{{ $t('ruleBuilder.LuaDocumentation') }}</span>
+            <a-icon type="export" />
+          </a>
+          <a href="#" class="tipscard__link">
+            <span>{{ $t('ruleBuilder.RuleBuildingTutorial') }}</span>
+            <a-icon type="export" />
+          </a>
+        </div>
+      </div>
+    </transition>
+
+    <div v-if="!showTips" class="tipscard__badge" @click="toggleTips">
+      <a-icon type="bulb" class="tipscard__badge__icon" />
+      <span class="tipscard__badge__text">{{ $t('ruleBuilder.ShowTips') }}</span>
     </div>
   </div>
 </template>
@@ -69,7 +142,6 @@ export default {
     };
   },
   created() {
-    // Check localStorage to see if the user has previously hidden the tips
     const hideTips = localStorage.getItem('ruleTipsHidden');
     if (hideTips === 'true') {
       this.showTips = false;
@@ -81,180 +153,12 @@ export default {
       this.showTips = !this.showTips;
       this.hideTips = !this.showTips;
 
-      // Save preference to localStorage
       localStorage.setItem('ruleTipsHidden', this.hideTips);
     }
   }
-}
+};
 </script>
 
 <style lang="scss" scoped>
-// Variables
-$color-primary: #4299e1;
-$color-secondary: #805ad5;
-$color-border: #e2e8f0;
-$color-text: #4a5568;
-$color-text-light: #718096;
-$color-bg: #fff;
-$color-bg-light: #f7fafc;
-
-.tips-card {
-  background-color: $color-bg;
-  border: 1px solid $color-border;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  margin-bottom: 25px;
-  transition: all 0.2s ease;
-  overflow: hidden;
-
-  &:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  }
-}
-
-.tips-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  background-color: $color-bg-light;
-  border-bottom: 1px solid $color-border;
-
-  h3 {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 600;
-    color: $color-text;
-  }
-}
-
-.tips-controls {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.hide-tips-label {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  cursor: pointer;
-  font-size: 14px;
-  color: $color-text-light;
-
-  input {
-    margin: 0;
-  }
-}
-
-.tips-close-btn {
-  background: none;
-  border: none;
-  font-size: 20px;
-  color: $color-text-light;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-
-  &:hover {
-    background-color: rgba(0, 0, 0, 0.05);
-    color: $color-text;
-  }
-}
-
-.tips-content {
-  padding: 16px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 24px;
-}
-
-.tip-section {
-  flex: 1;
-  min-width: 200px;
-
-  h4 {
-    margin: 0 0 8px 0;
-    font-size: 14px;
-    font-weight: 600;
-    color: $color-text;
-  }
-
-  ul {
-    margin: 0;
-    padding-left: 18px;
-
-    li {
-      margin-bottom: 4px;
-      font-size: 14px;
-      color: $color-text;
-      line-height: 1.4;
-    }
-  }
-
-  code {
-    background-color: $color-bg-light;
-    padding: 2px 4px;
-    border-radius: 3px;
-    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-    font-size: 13px;
-  }
-}
-
-.tips-footer {
-  padding: 12px 16px;
-  background-color: $color-bg-light;
-  border-top: 1px solid $color-border;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-
-.tips-link {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  color: $color-primary;
-  text-decoration: none;
-  font-size: 14px;
-  font-weight: 500;
-  transition: color 0.2s ease;
-
-  &:hover {
-    color: darken($color-primary, 10%);
-    text-decoration: underline;
-  }
-
-  .external-icon {
-    font-size: 12px;
-  }
-}
-
-.tips-badge {
-  display: inline-flex;
-  align-items: center;
-  background-color: $color-primary;
-  color: white;
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  box-shadow: 0 2px 5px rgba(66, 153, 225, 0.3);
-  margin-bottom: 15px;
-  transition: all 0.2s ease;
-
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(66, 153, 225, 0.4);
-  }
-
-  .tips-badge-icon {
-    margin-right: 5px;
-  }
-}
+@use "~@/assets/scss/rule_builder_tips" as *;
 </style>

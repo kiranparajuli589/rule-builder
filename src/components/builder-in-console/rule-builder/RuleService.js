@@ -10,7 +10,7 @@ export default {
   get operators() {
     return ConditionService.operators;
   },
-  
+
   get joinOperators() {
     return ConditionService.joinOperators;
   },
@@ -76,7 +76,7 @@ export default {
     return deepestPath;
   },
 
-  // New method to enforce the depth limit on an existing rule - now safer
+  // Safely enforce the depth limit on an existing rule
   enforceDepthLimit(rule) {
     if (!rule || !rule.create_pattern || !rule.create_pattern.conditions) {
       return rule;
@@ -165,7 +165,7 @@ export default {
     }
   },
 
-  // UPDATED METHOD: Format rule with function-style syntax
+  // Format rule with function-style syntax
   formatReadableRule(conditions, joinOperators) {
     if (!conditions || conditions.length === 0) return '';
 
@@ -218,6 +218,14 @@ export default {
     return '';
   },
 
+  formatReadableParametersList(parameters) {
+    if (!parameters || parameters.length === 0) return '';
+
+    return parameters.map(param =>
+      `${param.name} = "${param.value}"`
+    ).join(', ');
+  },
+
   generateId() {
     return '_' + Math.random().toString(36).substr(2, 9);
   },
@@ -232,18 +240,38 @@ export default {
     };
   },
 
+  newParameter() {
+    return {
+      name: '',
+      value: ''
+    };
+  },
+
   initializeRule() {
     return {
       create_pattern: {
         conditions: [this.newCondition()]
       },
+      replace_pattern: {
+        field: 'req.uri.path',
+        value: '',
+        withFn: false
+      }
     };
   },
 
-  validateRule(rule) {
+  initializeParameterRule() {
+    return {
+      create_pattern: {
+        conditions: [this.newCondition()]
+      },
+      parameters: [this.newParameter()]
+    };
+  },
+
+  validateRule(rule, replacePatternType = 'standard') {
     // Basic validation
     const createPattern = rule.create_pattern;
-    // const replacePattern = rule.replace_pattern;
 
     // Check if create pattern has at least one condition
     if (!createPattern.conditions || createPattern.conditions.length === 0) {
@@ -259,12 +287,6 @@ export default {
       }
     }
 
-    // Check for empty function arguments in replace pattern
-    // if (replacePattern.withFn && replacePattern.fn && (!replacePattern.fnArg || replacePattern.fnArg.trim() === '')) {
-    //   alert('Function argument cannot be empty when using a function.');
-    //   return false;
-    // }
-
     // Check if the rule exceeds the depth limit
     const depth = this.calculateDepth(createPattern.conditions);
     if (depth > this.DEPTH_LIMIT) {
@@ -277,21 +299,41 @@ export default {
       return false;
     }
 
-    // Check if replace pattern is valid
-    // if (!replacePattern.field) {
-    //   alert('Replace pattern must have a field.');
-    //   return false;
-    // }
-    //
-    // if (replacePattern.withFn) {
-    //   if (!replacePattern.fn || !replacePattern.fnArg) {
-    //     alert('Replace pattern with function must have both function and function argument.');
-    //     return false;
-    //   }
-    // } else if (!replacePattern.value && replacePattern.value !== '') {
-    //   alert('Replace pattern must have a value.');
-    //   return false;
-    // }
+    // Type-specific validation
+    if (replacePatternType === 'standard') {
+      // Check standard replace pattern
+      const replacePattern = rule.replace_pattern;
+
+      if (!replacePattern || !replacePattern.field) {
+        alert('Replace pattern must have a field.');
+        return false;
+      }
+
+      if (replacePattern.withFn) {
+        if (!replacePattern.fn || !replacePattern.fnArg) {
+          alert('Replace pattern with function must have both function and function argument.');
+          return false;
+        }
+      } else if (replacePattern.value === undefined) {
+        alert('Replace pattern must have a value.');
+        return false;
+      }
+    } else if (replacePatternType === 'parameters') {
+      // Check parameters
+      const parameters = rule.parameters;
+
+      if (!parameters || parameters.length === 0) {
+        alert('At least one parameter is required.');
+        return false;
+      }
+
+      for (const param of parameters) {
+        if (!param.name || !param.value) {
+          alert('All parameters must have name and value.');
+          return false;
+        }
+      }
+    }
 
     return true;
   },

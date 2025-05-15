@@ -1,261 +1,362 @@
+<!-- src/components/rule-builder/CreatePatternBuilder.vue -->
 <template>
   <div class="create-pattern-builder">
     <div
       v-for="(condition, index) in localConditions"
       :key="condition.id"
       class="condition-container"
-
     >
-      <!-- Group container for brackets - use recursive component -->
+      <!-- Group container for brackets -->
       <condition-group
         v-if="condition.isGroup"
-        :group.sync="condition"
+        :group="condition"
+        :nesting-level="1"
         @remove-condition="removeCondition(index)"
+        @update:group="updateGroup(index, $event)"
       />
 
-      <ConditionInputs
+      <!-- Regular condition -->
+      <condition-inputs
         v-else
         :condition="condition"
         :show-remove="localConditions.length > 1"
         @remove="removeCondition(index)"
-        class="condition-row"
-        :show-labels="localConditions.length <= 1"
         @update:condition="updateCondition(index, $event)"
+        class="condition-row"
       />
 
       <div v-if="index < localConditions.length - 1" class="join-operator-row">
-        <JoinSelect :selected="joinOperators[index]" @update:selected="updateJoinOperator(index, $event)" />
+        <select-dropdown
+          :selected.sync="joinOperators[index]"
+          :options="joinOperatorOptions"
+          :placeholder="$t('ruleBuilder.selectJoin')"
+          @update:selected="onJoinOperatorChange(index, $event)"
+        />
       </div>
     </div>
 
     <div class="actions-row">
       <a-button
-        v-if="localConditions.length < 2"
-        type="primary" ghost
-        class="add-btn action-btn outer"
+        type="primary"
+        ghost
         @click="addCondition"
-        size="small"
+        class="action-btn add-condition-btn outer"
       >
-        + Add Condition
+        <a-icon type="plus" />
+        {{$t('ruleBuilder.addCondition')}}
       </a-button>
-
       <a-button
-        v-if="localConditions.length >= 2 && !hasOnlyGroups() && !wouldExceedDepthLimit"
-        type="button"
-        class="bracket-btn action-btn outer"
+        v-if="canAddBrackets"
+        type="primary"
+        ghost
+        class="action-btn bracket-btn outer"
         @click="bracketExistingConditions"
-        size="small"
       >
-        Bracket These Conditions
+        <a-icon type="border-outer" />
+        {{$t('ruleBuilder.bracketConditions')}}
       </a-button>
 
       <a-button
-        v-if="localConditions.length >= 2 && !wouldExceedDepthLimit"
-        type="button"
-        class="add-group-btn action-btn outer"
+        v-if="canAddGroup"
+        type="primary"
+        ghost
+        class="action-btn add-group-btn outer"
         @click="addGroup"
-        size="small"
       >
-        Add Group
+        <a-icon type="appstore" />
+        {{$t('ruleBuilder.AddGroup')}}
       </a-button>
 
-      <div v-if="wouldExceedDepthLimit && localConditions.length >= 2" class="depth-limit-notice">
-        Maximum nesting depth of {{ RuleService.DEPTH_LIMIT }} reached
-      </div>
-    </div>
-
-    <div v-if="isRuleTooComplex" class="rule-too-complex">
-      <div class="alert alert-warning">
-        <strong>Warning:</strong> This rule has become too complex with a depth of
-        {{ currentDepth }} levels (maximum is {{ RuleService.DEPTH_LIMIT }}).
-        <a-button type="danger" ghost class="btn-reset-rule" @click="resetRule">
-          Reset Rule
-        </a-button>
+      <div v-if="depthLimitReached" class="depth-limit-notice">
+        {{$t('ruleBuilder.DepthLimitWarning', [maxDepthLimit])}}
       </div>
     </div>
   </div>
 </template>
 
 <script>
-import RuleService from "./RuleService.js";
-import { RuleMixin } from "./RuleMixin.js";
+import SelectDropdown from "@/components/SelectDropdown.vue";
+import ConditionInputs from "./ConditionInputs.vue";
+import ConditionService from "./ConditionService";
 
 export default {
   name: 'CreatePatternBuilder',
   components: {
-    JoinSelect: () => import("./JoinSelect.vue"),
-    ConditionInputs: () => import("./ConditionInputs.vue"),
-    ConditionGroup: () => import("./ConditionGroup.vue"),
+    ConditionGroup: () => import('./ConditionGroup.vue'),
+    ConditionInputs,
+    SelectDropdown
   },
-  mixins: [RuleMixin],
   props: {
     conditions: {
       type: Array,
-      required: true
+      default: () => []
     }
   },
   data() {
     return {
-      hasPromptedForBracketing: false,
-      lastCheckedDepth: 0,
+      localConditions: [],
+      joinOperators: [],
+      isProcessingAutomatic: false,
+      joinOperatorOptions: ConditionService.joinOperators,
+      maxDepthLimit: 3
     };
   },
   computed: {
-    RuleService() {
-      return RuleService;
+    canAddBrackets() {
+      return this.localConditions.length >= 2 &&
+        !this.hasOnlyGroups() &&
+        !this.wouldExceedDepthLimit();
     },
-    wouldExceedDepthLimit() {
-      // Check if adding a group at top level would exceed the depth limit
-      return RuleService.wouldExceedDepthLimit(this.localConditions);
+    canAddGroup() {
+      return this.localConditions.length >= 2 &&
+        !this.wouldExceedDepthLimit();
     },
-    currentDepth() {
-      return RuleService.calculateDepth(this.localConditions);
-    },
-    isRuleTooComplex() {
-      // Consider showing a warning if depth is getting close to or exceeding the limit
-      return this.currentDepth > RuleService.DEPTH_LIMIT;
+    depthLimitReached() {
+      return this.wouldExceedDepthLimit() && this.localConditions.length >= 2;
     }
   },
   watch: {
     conditions: {
-      handler(newValue) {
-        if (JSON.stringify(newValue) !== JSON.stringify(this.localConditions)) {
-          this.initializeFromProps();
-        }
-      },
-      deep: true,
-      immediate: true
-    },
-    currentDepth: {
-      handler(newDepth, oldDepth) {
-        // Check if depth has increased beyond the limit
-        if (newDepth > RuleService.DEPTH_LIMIT && newDepth > this.lastCheckedDepth) {
-          this.lastCheckedDepth = newDepth;
-          this.enforceDepthLimitNow();
+      immediate: true,
+      handler(newVal) {
+        // Only initialize if different - prevent infinite loops
+        const newValStr = JSON.stringify(newVal);
+        const localStr = JSON.stringify(this.localConditions);
+
+        if (newValStr !== localStr) {
+          this.initializeFromProps(newVal);
         }
       }
     }
   },
+  created() {
+    this.initializeFromProps(this.conditions);
+  },
   methods: {
-    // Override addGroup method to check depth limit
-    addGroup() {
-      // Check if adding a group would exceed depth limit
-      if (this.wouldExceedDepthLimit) {
-        alert(`Cannot add group - maximum nesting depth of ${RuleService.DEPTH_LIMIT} reached.`);
-        return;
-      }
+    initializeFromProps(conditions) {
+      // Deep copy to avoid reference issues
+      this.localConditions = conditions && conditions.length ?
+        JSON.parse(JSON.stringify(conditions)) :
+        [this.createNewCondition()];
 
-      // Use the addGroup method from the mixin
-      this.$options.mixins[0].methods.addGroup.call(this);
-    },
-
-    // Override bracketExistingConditions to check depth limit
-    bracketExistingConditions() {
-      // Check if adding a group would exceed depth limit
-      if (this.wouldExceedDepthLimit) {
-        alert(`Cannot bracket conditions - maximum nesting depth of ${RuleService.DEPTH_LIMIT} reached.`);
-        return;
-      }
-
-      // Use the bracketExistingConditions method from the mixin
-      this.$options.mixins[0].methods.bracketExistingConditions.call(this);
-    },
-
-    // Method to enforce depth limit immediately
-    enforceDepthLimitNow() {
-      console.warn(`Rule depth (${this.currentDepth}) exceeds limit (${RuleService.DEPTH_LIMIT}). Enforcing depth limit...`);
-
-      // Create a deep copy to avoid reference issues
-      let simplifiedConditions = JSON.parse(JSON.stringify(this.localConditions));
-
-      // Apply auto-simplification - limit to 5 attempts to prevent freezing
-      for (let attempt = 0; attempt < 5; attempt++) {
-        const deepestInfo = RuleService.findDeepestGroup(simplifiedConditions);
-
-        if (!deepestInfo.path || deepestInfo.path.length === 0 || deepestInfo.depth <= RuleService.DEPTH_LIMIT) {
-          break;
-        }
-
-        RuleService.simplifyDeepestGroup(simplifiedConditions, deepestInfo.path);
-      }
-
-      // Check if simplified conditions are within limit
-      const newDepth = RuleService.calculateDepth(simplifiedConditions);
-
-      if (newDepth <= RuleService.DEPTH_LIMIT) {
-        // Update conditions with simplified version
-        this.localConditions = simplifiedConditions;
-        alert(`Your rule exceeded the maximum nesting depth of ${RuleService.DEPTH_LIMIT}. It has been automatically simplified.`);
-      } else {
-        // If still too complex, show warning but don't freeze UI
-        console.error(`Unable to simplify rule to meet depth limit of ${RuleService.DEPTH_LIMIT}. Current depth: ${newDepth}`);
+      // Initialize join operators
+      this.joinOperators = [];
+      for (let i = 0; i < this.localConditions.length - 1; i++) {
+        this.joinOperators.push('&&'); // Default to AND
       }
     },
 
-    // Reset the rule to a simple state if it becomes too complex
-    resetRule() {
-      if (confirm("This will reset your current rule to a blank state. Are you sure?")) {
-        this.localConditions = [RuleService.newCondition()];
-        this.joinOperators = [];
-        this.lastCheckedDepth = 0;
-        this.$emit('update:conditions', this.localConditions);
-      }
+    createNewCondition() {
+      return {
+        id: '_' + Math.random().toString(36).substr(2, 9),
+        field: 'req.uri.path',
+        operator: '==',
+        value: '',
+        isGroup: false
+      };
     },
 
     updateCondition(index, updatedCondition) {
-      this.localConditions.splice(index, 1, updatedCondition);
+      if (index >= 0 && index < this.localConditions.length) {
+        this.localConditions.splice(index, 1, updatedCondition);
+        this.emitUpdateAfterDelay();
+      }
+    },
+
+    updateGroup(index, updatedGroup) {
+      if (index >= 0 && index < this.localConditions.length) {
+        this.localConditions.splice(index, 1, updatedGroup);
+        this.emitUpdateAfterDelay();
+      }
+    },
+
+    onJoinOperatorChange(index, value) {
+      if (index >= 0 && index < this.joinOperators.length) {
+        // First set the specific join operator that was changed
+        this.joinOperators[index] = value;
+
+        // If we have more than 2 conditions, update all join operators to match
+        if (this.localConditions.length > 2) {
+          // Update all join operators to use the same value
+          for (let i = 0; i < this.joinOperators.length; i++) {
+            this.joinOperators[i] = value;
+          }
+        }
+
+        this.emitUpdateAfterDelay();
+      }
+    },
+
+    hasOnlyGroups() {
+      return this.localConditions.length > 0 &&
+        this.localConditions.every(c => c.isGroup);
+    },
+
+    wouldExceedDepthLimit() {
+      // Implement a simpler version to prevent loops
+      const currentDepth = this.calculateDepth(this.localConditions);
+      return currentDepth + 1 > this.maxDepthLimit;
+    },
+
+    calculateDepth(conditions) {
+      if (!conditions || conditions.length === 0) return 0;
+
+      let maxDepth = 0;
+      for (const condition of conditions) {
+        if (condition.isGroup && condition.conditions) {
+          const groupDepth = 1 + this.calculateDepth(condition.conditions);
+          maxDepth = Math.max(maxDepth, groupDepth);
+        }
+      }
+
+      return maxDepth;
+    },
+
+    addCondition() {
+      // Add a new condition at the top level
+      this.localConditions.push(this.createNewCondition());
+
+      // If we now have 2+ conditions, add a join operator
+      if (this.localConditions.length > 1) {
+        this.joinOperators.push('&&');
+      }
+
+      this.emitUpdateAfterDelay();
+    },
+
+    removeCondition(index) {
+      if (index >= 0 && index < this.localConditions.length) {
+        this.localConditions.splice(index, 1);
+
+        // Update join operators array
+        if (index < this.joinOperators.length) {
+          this.joinOperators.splice(index, 1);
+        } else if (this.joinOperators.length > 0) {
+          this.joinOperators.pop();
+        }
+
+        // Ensure at least one condition exists
+        if (this.localConditions.length === 0) {
+          this.localConditions.push(this.createNewCondition());
+        }
+
+        this.emitUpdateAfterDelay();
+      }
+    },
+
+    addGroup() {
+      if (this.wouldExceedDepthLimit()) {
+        alert(`Cannot add group - maximum nesting depth of ${this.maxDepthLimit} reached.`);
+        return;
+      }
+
+      if (this.localConditions.length >= 1) {
+        // If we already have conditions, create a group with the last condition and a new one
+        const lastCondition = this.localConditions[this.localConditions.length - 1];
+
+        // Remove the last condition
+        this.localConditions.pop();
+
+        // Also remove the last join operator if there is one
+        if (this.joinOperators.length > 0) {
+          this.joinOperators.pop();
+        }
+
+        // Create a new group
+        const newGroup = {
+          id: '_' + Math.random().toString(36).substr(2, 9),
+          isGroup: true,
+          joinOperator: '&&',
+          conditions: [
+            JSON.parse(JSON.stringify(lastCondition)),
+            this.createNewCondition()
+          ]
+        };
+
+        // Add the new group
+        this.localConditions.push(newGroup);
+      } else {
+        // Just add a new group with two empty conditions
+        this.localConditions.push({
+          id: '_' + Math.random().toString(36).substr(2, 9),
+          isGroup: true,
+          joinOperator: '&&',
+          conditions: [
+            this.createNewCondition(),
+            this.createNewCondition()
+          ]
+        });
+      }
+
+      // Add a join operator if needed
+      if (this.localConditions.length > 1) {
+        this.joinOperators.push('&&');
+      }
+
+      this.emitUpdateAfterDelay();
+    },
+
+    bracketExistingConditions() {
+      if (this.wouldExceedDepthLimit()) {
+        alert(`Cannot bracket conditions - maximum nesting depth of ${this.maxDepthLimit} reached.`);
+        return;
+      }
+
+      // Create a group from all existing conditions
+      const groupedConditions = {
+        id: '_' + Math.random().toString(36).substr(2, 9),
+        isGroup: true,
+        joinOperator: this.joinOperators[0] || '&&',
+        conditions: JSON.parse(JSON.stringify(this.localConditions))
+      };
+
+      // Replace existing conditions with the group
+      this.localConditions = [groupedConditions];
+      this.joinOperators = [];
+
+      // Automatically add a new empty condition
+      this.localConditions.push(this.createNewCondition());
+
+      // Add join operator
+      this.joinOperators.push('&&');
+
+      this.emitUpdateAfterDelay();
+    },
+
+    groupFirstTwoConditions() {
+      if (this.localConditions.length >= 3 && !this.wouldExceedDepthLimit()) {
+        // Group first two conditions
+        const groupedConditions = {
+          id: '_' + Math.random().toString(36).substr(2, 9),
+          isGroup: true,
+          joinOperator: this.joinOperators[0],
+          conditions: [
+            JSON.parse(JSON.stringify(this.localConditions[0])),
+            JSON.parse(JSON.stringify(this.localConditions[1]))
+          ]
+        };
+
+        // Create new conditions array with the group and the third condition
+        const thirdCondition = this.localConditions[2];
+        this.localConditions = [groupedConditions, thirdCondition];
+
+        // Update join operators
+        if (this.joinOperators.length > 1) {
+          this.joinOperators = [this.joinOperators[1]];
+        } else {
+          this.joinOperators = ['&&'];
+        }
+
+        this.emitUpdateAfterDelay();
+      }
+    },
+
+    emitUpdateAfterDelay() {
+      // Use setTimeout to break potential recursive update cycles
+      setTimeout(() => {
+        this.$emit('update:conditions', JSON.parse(JSON.stringify(this.localConditions)));
+      }, 0);
     }
   }
-}
+};
 </script>
-
-<style lang="scss" scoped>
-.depth-limit-notice {
-  color: #e53e3e;
-  font-size: 13px;
-  font-style: italic;
-  margin-left: 10px;
-}
-
-.disabled {
-  opacity: 0.5;
-  cursor: not-allowed !important;
-
-  &:hover {
-    background-color: inherit !important;
-    transform: none !important;
-    box-shadow: none !important;
-  }
-}
-
-.rule-too-complex {
-  margin-top: 15px;
-}
-
-.alert {
-  padding: 12px 16px;
-  border-radius: 6px;
-  margin: 10px 0;
-
-  &.alert-warning {
-    background-color: #fef5e7;
-    border: 1px solid #f8bb86;
-    color: #8a5d3b;
-  }
-}
-
-.btn-reset-rule {
-  background-color: #e53e3e;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  padding: 5px 10px;
-  margin-left: 10px;
-  font-size: 12px;
-  cursor: pointer;
-
-  &:hover {
-    background-color: #c53030;
-  }
-}
-</style>
