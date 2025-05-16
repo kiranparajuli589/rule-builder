@@ -2,19 +2,20 @@
   <div class="condition-inputs">
     <div class="field-operator-value">
       <select-dropdown
-        :selected.sync="localCondition.field"
+        :selected="condition.field"
         :options="fields"
         :placeholder="$t('ruleBuilder.selectField')"
-        @update:selected="onFieldChange"
+        @update:selected="updateField"
         menu-width="fit-content"
         btn-width="245px"
         :label="showLabels ? $t('ruleBuilder.field') : undefined"
       />
 
       <select-dropdown
-        :selected.sync="localCondition.operator"
+        :selected="condition.operator"
         :options="operators"
         :placeholder="$t('ruleBuilder.selectOperator')"
+        @update:selected="updateOperator"
         menu-width="fit-content"
         :label="showLabels ? $t('ruleBuilder.operator') : undefined"
       />
@@ -22,60 +23,78 @@
       <div class="flex-grow-1">
         <select-dropdown
           v-if="fieldMeta.type === 'select'"
-          :selected.sync="localCondition.value"
+          :selected="condition.value"
           :options="fieldMeta.options || []"
           :placeholder="fieldMeta.placeholder"
+          @update:selected="updateValue"
           :label="showLabels ? $t('ruleBuilder.value') : undefined"
+          :description="showLabels ? fieldMeta.valueDescription : undefined"
         />
 
         <CInput
           v-else-if="fieldMeta.type === 'number'"
           type="number"
-          v-model="localCondition.value"
+          :value="condition.value"
           :placeholder="fieldMeta.placeholder"
           class="value-input"
           :min="fieldMeta.min"
           :max="fieldMeta.max"
           :step="fieldMeta.step"
           required
-          @blur="onFieldBlur"
-          @input="onFieldInput"
-          :is-valid="isTouched && !validationError"
-          :invalid-feedback="validationError"
+          @blur="handleBlur"
+          @input="handleInput($event)"
+          :is-valid="fieldTouched ? !fieldError : undefined"
+          :invalid-feedback="fieldTouched ? fieldError : undefined"
           :label="showLabels ? $t('ruleBuilder.value') : undefined"
+          :description="showLabels ? fieldMeta.valueDescription : undefined"
         />
 
         <CInput
           v-else
-          v-model="localCondition.value"
-          :placeholder="$t('ruleBuilder.enterValue')"
+          :value="condition.value"
+          :placeholder="fieldMeta.placeholder ?? $t('ruleBuilder.enterValue')"
           class="value-input"
           required
-          @blur="onFieldBlur"
-          @input="onFieldInput"
-          :is-valid="isTouched ? !validationError : undefined"
-          :invalid-feedback="validationError"
+          @blur="handleBlur"
+          @input="handleInput($event)"
+          :is-valid="fieldTouched ? !fieldError : undefined"
+          :invalid-feedback="fieldTouched ? fieldError : undefined"
           :label="showLabels ? $t('ruleBuilder.value') : undefined"
+          :description="showLabels ? fieldMeta.valueDescription : undefined"
         />
       </div>
     </div>
 
-    <div v-if="showRemove" class="action-button">
-      <a-button
-        type="danger"
-        ghost
-        class="delete-btn"
-        @click="$emit('remove')"
-      >
-        <a-icon type="delete" />
-      </a-button>
+    <div class="action-buttons" :class="{ 'show-labels': showLabels }">
+      <a-tooltip v-if="showCopyButton" placement="top" :title="$t('ruleBuilder.copyCondition')">
+        <a-button
+          type="primary"
+          ghost
+          class="copy-btn"
+          @click="copyCondition"
+        >
+          <a-icon type="copy" />
+        </a-button>
+      </a-tooltip>
+
+      <a-tooltip v-if="showRemove" placement="top" :title="$t('ruleBuilder.removeCondition')">
+        <a-button
+          type="danger"
+          ghost
+          class="delete-btn"
+          @click="$emit('remove')"
+        >
+          <a-icon type="delete" />
+        </a-button>
+      </a-tooltip>
     </div>
   </div>
 </template>
 
 <script>
+import { mapGetters, mapActions } from 'vuex';
 import SelectDropdown from "@/components/SelectDropdown.vue";
-import ConditionService from "./ConditionService";
+import ConditionService, { JOIN_OPERATOR } from "./ConditionService";
 
 export default {
   name: 'ConditionInputs',
@@ -83,8 +102,8 @@ export default {
     SelectDropdown
   },
   props: {
-    condition: {
-      type: Object,
+    conditionPath: {
+      type: Array,
       required: true
     },
     showRemove: {
@@ -98,104 +117,195 @@ export default {
   },
   data() {
     return {
-      localCondition: null,
-      validationError: null,
-      isTouched: false // Track if field has been touched
+      fieldTouched: false,
+      fieldError: null,
+      defaultField: ConditionService.fields[0]?.value || '',
+      defaultOperator: ConditionService.operators[0]?.value || ''
     };
   },
   computed: {
+    ...mapGetters('ruleBuilder', [
+      'getNestedValue'
+    ]),
+
+    condition() {
+      return this.getNestedValue(this.conditionPath) || {};
+    },
+
     fields() {
       return ConditionService.fields;
     },
+
     operators() {
       return ConditionService.operators;
     },
+
     field() {
-      return this.fields.find(f => f.value === this.localCondition.field);
+      return this.fields.find(f => f.value === this.condition.field);
     },
+
     fieldMeta() {
       return this.field ? (this.field?.meta ?? {}) : {};
+    },
+
+    showCopyButton() {
+      // Show copy button if field or operator is not default
+      return (this.condition.field && this.condition.field !== this.defaultField) ||
+        (this.condition.operator && this.condition.operator !== this.defaultOperator);
+    },
+
+    parentGroupPath() {
+      // Extract the parent group path by removing the last part (index in conditions array)
+      return this.conditionPath.slice(0, -1);
     }
   },
   watch: {
-    condition: {
-      immediate: true,
-      handler(newVal) {
-        if (!this.localCondition || JSON.stringify(newVal) !== JSON.stringify(this.localCondition)) {
-          this.localCondition = JSON.parse(JSON.stringify(newVal));
-
-          // Reset touched state when condition changes completely
-          if (newVal.field !== this.localCondition?.field) {
-            this.isTouched = false;
-          }
-
-          // Check if field already has a value when initializing
-          if (this.localCondition.value && this.localCondition.value.length > 0) {
-            // If a value exists, validate it but don't mark as touched yet
-            this.validateField();
-          }
-        }
-      }
+    'condition.field'() {
+      this.fieldTouched = false;
+      this.fieldError = null;
     },
 
-    localCondition: {
-      deep: true,
-      handler(newVal) {
-        // Emit update on a delay to avoid recursive update loops
-        this.emitUpdateAfterDelay();
+    'condition.value': {
+      handler(newValue) {
+        if (this.fieldTouched) {
+          this.validateField(newValue);
+        }
       }
-    }
-  },
-  created() {
-    this.localCondition = JSON.parse(JSON.stringify(this.condition));
-
-    // Check if field already has a value when initializing
-    if (this.localCondition.value && this.localCondition.value.length > 0) {
-      // If a value exists, validate it but don't mark as touched yet
-      this.validateField();
     }
   },
   methods: {
-    onFieldChange() {
+    ...mapActions('ruleBuilder', [
+      'updateNestedValue',
+      'validateRule'
+    ]),
+
+    updateField(value) {
+      this.updateNestedValue({
+        path: [...this.conditionPath, 'field'],
+        value
+      });
+
       // Reset value when field changes
-      this.localCondition.value = '';
-      this.validationError = null;
-      this.isTouched = false;
-      this.emitUpdateAfterDelay();
+      this.updateNestedValue({
+        path: [...this.conditionPath, 'value'],
+        value: ''
+      });
+
+      // Reset touched state and error
+      this.fieldTouched = false;
+      this.fieldError = null;
+
+      this.validateRule();
     },
 
-    onFieldBlur() {
-      this.isTouched = true;
-      this.validateField();
+    updateOperator(value) {
+      this.updateNestedValue({
+        path: [...this.conditionPath, 'operator'],
+        value
+      });
+
+      this.validateRule();
     },
 
-    onFieldInput() {
-      if (this.isTouched) {
-        this.validateField();
+    updateValue(value) {
+      this.updateNestedValue({
+        path: [...this.conditionPath, 'value'],
+        value
+      });
+
+      this.fieldTouched = true;
+
+      this.validateField(value);
+
+      this.validateRule();
+    },
+
+    handleBlur() {
+      this.fieldTouched = true;
+
+      this.validateField(this.condition.value);
+
+      this.validateRule();
+    },
+
+    handleInput(event) {
+      const value = event.target ? event.target.value : event;
+
+      this.updateNestedValue({
+        path: [...this.conditionPath, 'value'],
+        value
+      });
+
+      if (this.fieldTouched) {
+        this.validateField(value);
       }
+
+      this.validateRule();
     },
 
-    validateField() {
-      this.validationError = null;
+    validateField(value) {
+      this.fieldError = null;
 
-      // Check if field has a validate function in ConditionService
-      if (this.field && this.field.validate) {
-        this.validationError = this.field.validate(this.localCondition.value);
-      }
-      // Basic validation - required field
-      else if (!this.localCondition.value && this.localCondition.value !== 0) {
-        this.validationError = this.$t('validation.required');
+      if (!this.field) return;
+
+      if (this.field.validate) {
+        this.fieldError = this.field.validate(value);
+      } else if (value === '' || value === undefined) {
+        this.fieldError = this.$t('validation.required');
       }
 
-      return !this.validationError;
+      return !this.fieldError;
     },
 
-    emitUpdateAfterDelay() {
-      // Use setTimeout to break potential recursive update loops
-      setTimeout(() => {
-        this.$emit('update:condition', JSON.parse(JSON.stringify(this.localCondition)));
-      }, 0);
+    copyCondition() {
+      const currentCondition = this.condition;
+
+      const newCondition = {
+        id: '_' + Math.random().toString(36).substr(2, 9),  // Generate a new unique ID
+        field: currentCondition.field,
+        operator: currentCondition.operator,
+        value: '',
+        isGroup: false,
+        joinOperator: currentCondition.joinOperator || JOIN_OPERATOR.AND
+      };
+
+      const parentPath = this.conditionPath.slice(0, -1);
+      const currentIndex = parseInt(this.conditionPath[this.conditionPath.length - 1]);
+      const conditions = [...(this.getNestedValue(parentPath) || [])];
+      conditions.splice(currentIndex + 1, 0, newCondition);
+
+      this.updateNestedValue({
+        path: parentPath,
+        value: conditions
+      });
+
+      this.validateRule();
+    },
+    
+    generateId() {
+      return '_' + Math.random().toString(36).substr(2, 9);
     }
   }
 };
 </script>
+
+<style lang="scss" scoped>
+.action-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  
+  &.show-labels {
+    padding-top: 30px;
+  }
+}
+
+.copy-btn, .delete-btn {
+  height: 32px;
+  width: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+</style>

@@ -22,7 +22,7 @@ export const RULE_FIELDS = {
   HOST: 'req.headers.host',
   USER_AGENT: 'req.headers.UserAgent',
   COUNTRY: 'req.geo.country',
-  STATUS_CODE: 'req.status'
+  STATUS_CODE: 'res.status'
 }
 export const CONDITION_OPERATOR = {
   EQUALS: '==',
@@ -38,6 +38,44 @@ export default {
       label: $t('ruleBuilder.uriPath'),
       value: RULE_FIELDS.URI_PATH,
       description: $t('ruleBuilder.uriPathDescription'),
+      meta: {
+        placeholder: "ex: /uri/path",
+        valueDescription: "Starts with /, ex: /api/v1",
+      },
+      validate(value) {
+        // REQUIRED
+        if (value === '' || value === null || value === undefined) {
+          return $t('validation.required')
+        }
+        
+        // PATH MUST START WITH /
+        if (!value.startsWith('/')) {
+          return $t('ruleBuilder.pathMustStartWithSlash')
+        }
+        
+        // VALIDATE REGEX
+        const regex = new RegExp(/^[a-zA-Z0-9/.\-_~%:;?&=#@]+$/);
+        if (!regex.test(value)) {
+          return $t('ruleBuilder.pathMustBeValid')
+        }
+        
+        // DOES NOT CONTAIN POTENTIAL XSS
+        const xssRegex = new RegExp(/<script.*?>.*?<\/script>/i);
+        if (xssRegex.test(value)) {
+          return $t('ruleBuilder.pathMustNotContainXSS')
+        }
+        
+        // VALIDATE LENGTH
+        if (value.length > 2048) {
+          return $t('ruleBuilder.pathMustNotExceedLength', [2048])
+        }
+        
+        // SQL INJECTION
+        const sqlInjectionRegex = new RegExp(/(SELECT|INSERT|UPDATE|DELETE|DROP|UNION|WHERE|OR|AND|;|\*|\(|\)|--)/i);
+        if (sqlInjectionRegex.test(value)) {
+          return $t('ruleBuilder.pathMustNotContainSQLInjection')
+        }
+      }
     },
     {
       label: $t('ruleBuilder.method'),
@@ -60,6 +98,11 @@ export default {
       label: $t('ruleBuilder.host'),
       value: RULE_FIELDS.HOST,
       description: $t('ruleBuilder.hostDescription'),
+      meta: {
+        placeholder: $t('ruleBuilder.enterHost'),
+        type: 'text',
+        valueDescription: "Starts with http:// or https://, ex: https://example.com",
+      }
     },
     {
       label: $t('ruleBuilder.userAgent'),
@@ -85,6 +128,7 @@ export default {
         min: 100,
         max: 599,
         step: 1,
+        valueDescription: "Must be a number between 100 and 599, ex: 200, 404",
       },
       validate: (value) => {
         // Skip validation for empty values

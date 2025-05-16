@@ -16,20 +16,32 @@
         <div v-if="showDepthWarning" class="global-depth-warning">
           <div class="alert alert-warning">
             <strong>{{$t('ruleBuilder.Warning')}}:</strong> {{$t('ruleBuilder.DepthLimitWarning', [RuleService.DEPTH_LIMIT])}}
-            Further nesting may be limited.
             <button type="button" @click="showDepthWarning = false" class="close-warning">×</button>
           </div>
         </div>
 
+        <!-- Show global validation errors -->
+        <div v-if="hasGlobalErrors" class="global-validation-errors">
+          <div class="alert alert-danger">
+            <strong>{{$t('ruleBuilder.ValidationErrors')}}:</strong>
+            <ul>
+              <li v-for="error in globalErrors" :key="error.field">
+                {{ error.message }}
+              </li>
+            </ul>
+          </div>
+        </div>
+
         <CInput
-          v-model="localRule.name"
+          id="rule-name"
+          :value="rule.name"
           :placeholder="$t('ruleBuilder.RuleNamePlaceholder')"
-          :label="$t('ruleBuilder.RuleName') + '*'"
+          @input="handleNameInput($event)"
+          @blur="handleNameBlur"
+          :is-valid="nameTouched ? !nameError : undefined"
+          :invalid-feedback="nameTouched ? nameError : undefined"
+          :label="$t('ruleBuilder.RuleName')"
           :required="true"
-          :description="$t('ruleBuilder.RuleNameDescription')"
-          :is-valid="isNameTouched ? !!localRule.name : undefined"
-          :invalid-feedback="$t('ruleBuilder.RuleNameRequired')"
-          @blur="isNameTouched = true"
         />
 
         <div class="section">
@@ -37,10 +49,7 @@
             <h2>{{ $t('ruleBuilder.CreatePattern') }}</h2>
             <p>{{ $t('ruleBuilder.CreatePatternDescription') }}</p>
           </header>
-          <create-pattern-builder
-            :conditions="localRule.create_pattern.conditions"
-            @update:conditions="updateCreatePatternConditions"
-          />
+          <create-pattern-builder />
         </div>
 
         <!-- Dynamic component for replace patterns -->
@@ -51,17 +60,11 @@
           </header>
 
           <!-- Standard replace pattern -->
-          <replace-pattern-builder
-            v-if="replacePatternType === 'standard'"
-            :pattern="localRule.replace_pattern"
-            @update:pattern="updateReplacePattern"
-          />
+          <replace-pattern-builder />
         </div>
 
         <div class="section" v-if="replacePatternType === 'parameters'">
           <parameter-rewrite
-            :parameters="localRule.parameters || []"
-            @update:parameters="updateParameters"
             v-bind="meta"
           />
         </div>
@@ -89,11 +92,10 @@
           </div>
 
           <h3>{{ $t('ruleBuilder.RulePreviewJSON') }}</h3>
-          <pre>{{ JSON.stringify(localRule, null, 2) }}</pre>
+          <pre>{{ JSON.stringify(rule, null, 2) }}</pre>
         </div>
       </div>
-      
-      
+
       <div class="bottom-space" />
     </form>
   </a-modal>
@@ -118,24 +120,24 @@ export default {
   },
   data() {
     return {
-      originalRule: null,
       showDepthWarning: false,
-      localRule: null,
-      isEnforcingDepthLimit: false,
       isFormDirty: false,
-      initialRuleState: null,
-      
-      isNameTouched: false,
+      originalRuleState: null,
+      nameTouched: false,
+      nameError: null
     };
   },
   computed: {
+    ...mapState('ruleBuilder', [
+      'rule',
+      'meta',
+      'validationErrors'
+    ]),
     ...mapGetters('ruleBuilder', [
       'getDialogState',
-      'getRule',
-      'getMeta',
-      'getReplacePatternType'
+      'getReplacePatternType',
+      'getFieldError'
     ]),
-    ...mapState('ruleBuilder', ['rule', 'meta']),
 
     showDialog: {
       get() {
@@ -143,7 +145,7 @@ export default {
       },
       set(value) {
         if (!value) {
-          this.onClose()
+          this.onClose();
         } else {
           this.setDialogState(value);
         }
@@ -155,7 +157,7 @@ export default {
     },
 
     isForEdit() {
-      return !!this.localRule?.id;
+      return !!this.rule?.id;
     },
 
     RuleService() {
@@ -163,98 +165,133 @@ export default {
     },
 
     currentDepth() {
-      return RuleService.calculateDepth(this.localRule?.create_pattern?.conditions || []);
+      return RuleService.calculateDepth(this.rule?.create_pattern?.conditions || []);
     },
 
     readableCreatePattern() {
-      return this.localRule && this.localRule.create_pattern
+      return this.rule && this.rule.create_pattern
         ? RuleService.formatReadableRule(
-          this.localRule.create_pattern.conditions || [],
-          this.localRule.create_pattern.joinOperators
+          this.rule.create_pattern.conditions || []
         )
         : '';
     },
 
     readableReplacePattern() {
-      if (!this.localRule) return '';
+      if (!this.rule) return '';
 
       if (this.replacePatternType === 'standard') {
-        return RuleService.formatReadableReplacePattern(this.localRule.replace_pattern);
+        return RuleService.formatReadableReplacePattern(this.rule.replace_pattern);
       } else if (this.replacePatternType === 'parameters') {
         // Format parameter rewrite as readable text
-        const params = this.localRule.parameters || [];
+        const params = this.rule.parameters || [];
         if (params.length === 0) return '';
 
         return params.map(p => `${p.name} = "${p.value}"`).join(', ');
       }
       return '';
+    },
+
+    hasGlobalErrors() {
+      return this.globalErrors.length > 0;
+    },
+
+    globalErrors() {
+      return this.validationErrors;
     }
   },
   watch: {
     rule: {
-      immediate: true,
-      handler(newVal) {
-        this.originalRule = newVal ? JSON.parse(JSON.stringify(newVal)) : null;
-
-        if (newVal) {
-          this.localRule = JSON.parse(JSON.stringify(newVal));
-        } else {
-          this.localRule = RuleService.initializeRule();
-        }
-
-        // Set the initial state for dirty checking - this is the key fix
-        this.$nextTick(() => {
-          this.initialRuleState = JSON.stringify(this.localRule);
-          this.isFormDirty = false;
-        });
-      }
-    },
-    currentDepth(newDepth) {
-      // Show warning when approaching depth limit
-      if (newDepth >= RuleService.DEPTH_LIMIT - 1) {
-        this.showDepthWarning = true;
-      }
-
-      // Check if depth limit exceeded
-      if (newDepth > RuleService.DEPTH_LIMIT && !this.isEnforcingDepthLimit) {
-        this.enforceDepthLimit();
-      }
-    },
-    localRule: {
       deep: true,
+      immediate: false,
       handler(newVal) {
-        if (newVal) {
-          const currentState = JSON.stringify(newVal);
-          this.isFormDirty = currentState !== this.initialRuleState;
+        // Only update depth warning, don't modify dirty state here
+        if (this.currentDepth >= RuleService.DEPTH_LIMIT - 1) {
+          this.showDepthWarning = true;
         }
+        
+        if (this.originalRuleState === null) {
+          this.originalRuleState = newVal;
+        } else {
+          this.isFormDirty = JSON.stringify(this.originalRuleState) !== JSON.stringify(newVal);
+        }
+        
       }
-    }
+    },
   },
+  // created() {
+  //   if (this.rule) {
+  //     this.originalRuleState = JSON.stringify(this.rule);
+  //
+  //     if (this.rule.name) {
+  //       this.validateName(this.rule.name);
+  //     }
+  //
+  //     this.isFormDirty = false;
+  //   }
+  // },
   methods: {
     ...mapActions('ruleBuilder', [
       'setDialogState',
       'setRule',
-      'updateCreatePattern',
-      'updateReplacePattern',
+      'validateRule',
+      'updateNestedValue'
     ]),
-    ...mapActions({
-      'storeUpdateParameters': 'ruleBuilder/updateParameters',
-    }),
+
+    handleNameInput(event) {
+      const value = event.target ? event.target.value : event;
+
+      // Only set dirty flag if value actually changed
+      const currentName = this.rule.name || '';
+      if (value !== currentName) {
+        this.isFormDirty = true;
+      }
+
+      this.updateNestedValue({
+        path: ['name'],
+        value
+      });
+
+      if (this.nameTouched) {
+        this.validateName(value);
+      }
+
+      this.validateRule();
+    },
+
+    handleNameBlur() {
+      this.nameTouched = true;
+      this.validateName(this.rule.name);
+      this.validateRule();
+    },
+
+    validateName(value) {
+      this.nameError = null;
+
+      if (!value || value.trim() === '') {
+        this.nameError = this.$t('ruleBuilder.RuleNameRequired');
+        return false;
+      }
+      
+      // at lest 3 characters
+      if (value.length < 3) {
+        this.nameError = this.$t('validation.minLength', [3]);
+        return false;
+      }
+
+      return true;
+    },
 
     handleSubmit() {
-      if (!this.localRule.name.trim()) {
-        this.$message.error(this.$t('ruleBuilder.RuleNameRequired'));
-        return;
-      }
+      // Mark name as touched for validation
+      this.nameTouched = true;
+      this.validateName(this.rule.name);
 
-      if (this.currentDepth > RuleService.DEPTH_LIMIT) {
-        this.$message.error(
-          this.$t('ruleBuilder.RuleDepthExceeded', { limit: RuleService.DEPTH_LIMIT })
-        );
-        return;
-      }
+      // Validate the entire rule
+      this.validateRule();
 
-      if (!RuleService.validateRule(this.localRule)) {
+      // Check for validation errors
+      if (this.nameError || this.validationErrors.length > 0) {
+        this.$message.error(this.$t('ruleBuilder.FixValidationErrors'));
         return;
       }
 
@@ -266,27 +303,8 @@ export default {
       this.showDialog = false;
     },
 
-    updateCreatePatternConditions(conditions) {
-      if (this.localRule) {
-        this.localRule.create_pattern.conditions = conditions;
-      }
-    },
-
-    updateReplacePattern(pattern) {
-      if (this.localRule) {
-        this.localRule.replace_pattern = pattern;
-      }
-    },
-
-    updateParameters(parameters) {
-      if (this.localRule) {
-        this.$set(this.localRule, 'parameters', [...parameters]);
-        this.storeUpdateParameters(parameters);
-      }
-    },
-
     formatRuleForSubmission() {
-      const formattedRule = JSON.parse(JSON.stringify(this.localRule));
+      const formattedRule = JSON.parse(JSON.stringify(this.rule));
 
       if (this.replacePatternType === 'none') {
         delete formattedRule.replace_pattern;
@@ -313,39 +331,30 @@ export default {
         iconType: 'reload',
         centered: true,
         onOk: () => {
-          this.localRule = JSON.parse(JSON.stringify(this.originalRule));
+          // Reset form to original state by reloading from store
+          this.setRule(this.rule.id ? this.rule : null);
+
+          // Reset touched state
+          this.nameTouched = false;
+          this.nameError = null;
+
           this.isFormDirty = false;
         }
-      })
+      });
     },
 
     onClose() {
       this.handleBeforeClose(() => {
         this.setRule(null);
         this.isFormDirty = false;
-        this.initialRuleState = null;
+        this.originalRuleState = null;
         this.setDialogState(false);
-        this.localRule = null;
         this.showDepthWarning = false;
-        this.isEnforcingDepthLimit = false;
-        this.isNameTouched = false;
+
+        // Reset touched state
+        this.nameTouched = false;
+        this.nameError = null;
       });
-    },
-
-    enforceDepthLimit() {
-      if (this.isEnforcingDepthLimit) return;
-
-      this.isEnforcingDepthLimit = true;
-      try {
-        this.localRule = RuleService.enforceDepthLimit(this.localRule);
-        this.$message.warning(this.$t('ruleBuilder.RuleSimplified'));
-      } catch (error) {
-        console.error('Error enforcing depth limit:', error);
-      } finally {
-        this.$nextTick(() => {
-          this.isEnforcingDepthLimit = false;
-        });
-      }
     },
 
     handleBeforeClose(done) {
@@ -362,9 +371,57 @@ export default {
           }
         });
       } else {
-        done(); // No changes, just close
+        done();
       }
     }
   }
 };
 </script>
+
+<style lang="scss" scoped>
+.rule-builder-container {
+  .global-validation-errors {
+    margin-bottom: 20px;
+
+    .alert-danger {
+      background-color: #fff2f0;
+      border: 1px solid #ffccc7;
+      color: #ff4d4f;
+      padding: 15px;
+      border-radius: 4px;
+
+      ul {
+        margin: 10px 0 0;
+        padding-left: 20px;
+      }
+    }
+  }
+
+  .form-group {
+    margin-bottom: 20px;
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+
+    input {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #d9d9d9;
+      border-radius: 4px;
+
+      &.is-invalid {
+        border-color: #ff4d4f;
+      }
+    }
+
+    .invalid-feedback {
+      color: #ff4d4f;
+      font-size: 12px;
+      margin-top: 4px;
+    }
+  }
+}
+</style>

@@ -162,16 +162,8 @@ export default {
     max-height: 300px;
     overflow-y: auto;
     overflow-x: auto;
-
     scrollbar-width: thin;
-
-    @media screen and (min-width: 600px) and (max-width: 1400px) {
-      max-width: 512px;
-    }
-
-    @media screen and (max-width: 768px) {
-      max-width: 100%;
-    }
+    max-width: 100%;
   }
 
   .rule-table {

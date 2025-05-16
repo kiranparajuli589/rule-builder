@@ -1,55 +1,31 @@
 <template>
-  <div class="accordions">
+  <div class="url-rewrite">
     <template v-if="isEnabled">
-      <div
-        class="accordion-x"
-        v-for="(accordion, index) in accordions"
-        :key="accordion.name"
-      >
-        <div
-          class="accordion-x__header"
-          @click="toggleAccordion(index)"
+      <a-tabs default-active-key="1">
+        <a-tab-pane
+          v-for="tab in rewriteTabs"
+          :key="tab.key"
+          :tab="$t(tab.titleKey)"
         >
-          <div class="title">
-            <div class="d-flex align-items-center gap-4 grow">
-              <h4>{{ accordion.name }}</h4>
-
-              <span class="tonal">
-                {{ getRuleCount(accordion.value) }} {{ $t('rule.Rules') }}
-              </span>
+          <div class="tab-content">
+            <div class="tab-description">
+              {{ $t(tab.descriptionKey) }}
             </div>
 
-            <span
-              :class="{
-                'rotate-180': accordion.show,
-                'rotate-0': !accordion.show,
-              }"
-            >
-              <img src="/icons/arrow_circle_down.svg" alt="Toggle" />
-            </span>
-          </div>
-          <div class="subtitle">
-            <p>{{ accordion.description }}</p>
-          </div>
-        </div>
-        <transition name="accordion">
-          <div
-            class="accordion-x__content"
-            v-if="accordion.show"
-          >
             <rule-list
-              :rules="getRules(accordion.value)"
-              :config-key="accordion.value"
-              @create="handleCreateRule(accordion)"
-              @edit="handleEditRule($event, accordion)"
+              :rules="getRules(tab.configKey)"
+              :config-key="tab.configKey"
+              @create="handleCreateRule(tab.configKey)"
+              @edit="handleEditRule"
               @delete="handleDeleteRule"
               @toggle-status="handleToggleStatus"
-              :empty-text="accordion.meta.emptyText"
+              :empty-text="$t(tab.emptyTextKey)"
             />
           </div>
-        </transition>
-      </div>
+        </a-tab-pane>
+      </a-tabs>
     </template>
+
     <simple-empty v-else>
       <span slot="description">{{ $t('message.PluginNotActive') }}</span>
     </simple-empty>
@@ -85,104 +61,62 @@ export default {
   },
   data() {
     return {
-      accordions: [
+      REWRITE_RULES,
+      rewriteTabs: [
         {
-          name: this.$t("domain.PathRewrite"),
-          description: this.$t("domain.PathRewriteDescription"),
-          value: REWRITE_RULES.PATH,
-          show: false,
-          meta: {
-            configKey: REWRITE_RULES.PATH,
-            replacePatternType: 'standard',
-            emptyText: this.$t("domain.PathRewriteEmptyRules")
-          },
+          key: "1",
+          titleKey: "domain.PathRewrite",
+          descriptionKey: "domain.PathRewriteDescription",
+          configKey: REWRITE_RULES.PATH,
+          emptyTextKey: "domain.PathRewriteEmptyRules"
         },
         {
-          name: this.$t("domain.QueryRewrite"),
-          description: this.$t("domain.QueryRewriteDescription"),
-          value: REWRITE_RULES.QUERY,
-          show: false,
-          meta: {
-            configKey: REWRITE_RULES.QUERY,
-            formTitle: this.$t("domain.QueryParameterModification"),
-            formSubtitle: this.$t("domain.ParameterModificationDescription"),
-            primaryLabel: this.$t('Name') + '*',
-            primaryPlaceholder: "param1",
-            addButtonLabel: this.$t('domain.AddParameter'),
-            replacePatternType: 'parameters',
-            emptyText: this.$t("domain.QueryRewriteEmptyRules")
-          },
+          key: "2",
+          titleKey: "domain.QueryRewrite",
+          descriptionKey: "domain.QueryRewriteDescription",
+          configKey: REWRITE_RULES.QUERY,
+          emptyTextKey: "domain.QueryRewriteEmptyRules"
         },
         {
-          name: this.$t("domain.HeaderRewrite"),
-          description: this.$t("domain.HeaderRewriteDescription"),
-          value: REWRITE_RULES.HEADER,
-          show: false,
-          meta: {
-            configKey: REWRITE_RULES.HEADER,
-            formTitle: this.$t("domain.HeaderModification"),
-            formSubtitle: this.$t("domain.HeaderModificationDescription"),
-            primaryLabel: `${this.$t('Name')}*`,
-            primaryPlaceholder: "header1",
-            addButtonLabel: this.$t('domain.AddHeader'),
-            replacePatternType: 'parameters',
-            emptyText: this.$t("domain.HeaderRewriteEmptyRules")
-          },
+          key: "3",
+          titleKey: "domain.HeaderRewrite",
+          descriptionKey: "domain.HeaderRewriteDescription",
+          configKey: REWRITE_RULES.HEADER,
+          emptyTextKey: "domain.HeaderRewriteEmptyRules"
         }
       ]
     };
   },
-  computed: {
-    REWRITE_RULES() {
-      return REWRITE_RULES;
-    }
-  },
   methods: {
+    // The rest of your methods remain the same
     ...mapActions({
       openRuleBuilder: 'ruleBuilder/openDialog'
     }),
-
-    toggleAccordion(index) {
-      if (this.accordions[index]) {
-        this.accordions[index].show = !this.accordions[index].show;
-      }
-    },
-
-    getRuleCount(configKey) {
-      return Array.isArray(this.value?.config?.[configKey]) ?
-        this.value.config[configKey].length : 0;
-    },
 
     getRules(configKey) {
       return Array.isArray(this.value?.config?.[configKey]) ?
         this.value.config[configKey] : [];
     },
 
-    handleCreateRule(accordion) {
+    handleCreateRule(configKey) {
+      const meta = this.getMetaForConfigKey(configKey);
       this.openRuleBuilder({
-        meta: accordion.meta,
-        replacePatternType: accordion.meta.replacePatternType
+        meta,
+        replacePatternType: meta.replacePatternType
       });
     },
 
-    handleEditRule(rule, accordion) {
+    handleEditRule(rule) {
+      const configKey = rule.meta?.configKey;
+      const meta = this.getMetaForConfigKey(configKey);
       this.openRuleBuilder({
         rule,
-        meta: accordion.meta,
-        replacePatternType: accordion.meta.replacePatternType
+        meta,
+        replacePatternType: meta.replacePatternType
       });
     },
 
     handleDeleteRule(rule, configKey) {
-      // if (confirm(this.$t('domain.DeleteRuleConfirmation'))) {
-      //   const updatedRules = [...this.getRules(configKey)];
-      //   const index = updatedRules.findIndex(r => r.id === rule.id);
-      //
-      //   if (index !== -1) {
-      //     updatedRules.splice(index, 1);
-      //     this.updateRules(updatedRules, configKey);
-      //   }
-      // }
       Modal.confirm({
         title: this.$t('ruleBuilder.DeleteRule'),
         content: this.$t('ruleBuilder.DeleteRuleConfirmation'),
@@ -232,29 +166,61 @@ export default {
     },
 
     updateRules(rules, configKey) {
-      if (!configKey) {
-        return;
-      }
-      
+      if (!configKey) return;
       this.$emit('update:input', { values: rules, configKey });
     },
 
     generateId() {
       return '_' + Math.random().toString(36).substr(2, 9);
+    },
+
+    getMetaForConfigKey(configKey) {
+      switch(configKey) {
+        case REWRITE_RULES.PATH:
+          return {
+            configKey,
+            replacePatternType: 'standard',
+            emptyText: this.$t("domain.PathRewriteEmptyRules")
+          };
+        case REWRITE_RULES.QUERY:
+          return {
+            configKey,
+            formTitle: this.$t("domain.QueryParameterModification"),
+            formSubtitle: this.$t("domain.ParameterModificationDescription"),
+            primaryLabel: this.$t('Name') + '*',
+            primaryPlaceholder: "param1",
+            addButtonLabel: this.$t('domain.AddParameter'),
+            replacePatternType: 'parameters',
+            emptyText: this.$t("domain.QueryRewriteEmptyRules")
+          };
+        case REWRITE_RULES.HEADER:
+          return {
+            configKey,
+            formTitle: this.$t("domain.HeaderModification"),
+            formSubtitle: this.$t("domain.HeaderModificationDescription"),
+            primaryLabel: `${this.$t('Name')}*`,
+            primaryPlaceholder: "header1",
+            addButtonLabel: this.$t('domain.AddHeader'),
+            replacePatternType: 'parameters',
+            emptyText: this.$t("domain.HeaderRewriteEmptyRules")
+          };
+        default:
+          return { configKey, replacePatternType: 'standard' };
+      }
     }
   }
 };
 </script>
 
-<style scoped>
-.accordions {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  width: 100%;
-  min-height: 64vh;
-  .accordion {
-    width:  100%;
+<style lang="scss" scoped>
+.url-rewrite {
+  .tab-content {
+    padding: 20px 0;
+  }
+
+  .tab-description {
+    margin-bottom: 20px;
+    color: rgba(0, 0, 0, 0.65);
   }
 }
 </style>

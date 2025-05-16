@@ -4,6 +4,7 @@
       <h2>{{ formTitle }}</h2>
       <p>{{ formSubtitle }}</p>
     </header>
+    
     <div class="parameter-list">
       <div
         v-for="(param, index) in localParameters"
@@ -15,9 +16,9 @@
             v-model="param.name"
             :label="primaryLabel"
             :placeholder="primaryPlaceholder"
-            :is-valid="param.nameTouched ? !shouldShowError(param, 'name') : undefined"
-            @blur="markAsTouched(param, 'name')"
-            @input="onInputChange"
+            :is-valid="param.nameTouched ? !!isNameValid(param) : undefined"
+            @blur="param.nameTouched = true; syncWithStore()"
+            @input="syncWithStore"
             :invalid-feedback="$t('validation.required')"
             required
           />
@@ -28,9 +29,9 @@
             v-model="param.value"
             :label="$t('domain.ReplaceValue') + '*'"
             placeholder="new-value"
-            :is-valid="param.valueTouched ? !shouldShowError(param, 'value') : undefined"
-            @blur="markAsTouched(param, 'value')"
-            @input="onInputChange"
+            :is-valid="param.valueTouched ? !!isValueValid(param) : undefined"
+            @blur="param.valueTouched = true; syncWithStore()"
+            @input="syncWithStore"
             :invalid-feedback="$t('validation.required')"
             required
           />
@@ -56,9 +57,9 @@
       <a-button
         type="primary"
         ghost
-        @click="addParameter"
-        :disabled="!isValid"
         class="add-param-btn"
+        :disabled="isAddParameterBtnValid"
+        @click="addParameter"
       >
         <a-icon type="plus" />
         {{ addButtonLabel }}
@@ -68,13 +69,11 @@
 </template>
 
 <script>
+import { mapState, mapActions } from 'vuex';
+
 export default {
   name: 'ParameterRewrite',
   props: {
-    parameters: {
-      type: Array,
-      default: () => []
-    },
     primaryLabel: {
       type: String,
       default: 'Parameter Name*'
@@ -98,79 +97,61 @@ export default {
   },
   data() {
     return {
-      localParameters: [],
-      lastEmittedValue: null,
-      debounceTimer: null
+      localParameters: []
     };
   },
   computed: {
-    isValid() {
-      return this.localParameters.every(param =>
-        this.validateParameter(param.name, 'name') &&
-        this.validateParameter(param.value, 'value')
-      );
+    ...mapState('ruleBuilder', ['rule', 'showDialog']),
+    isAddParameterBtnValid() {
+      return this.localParameters.some(param => !this.isNameValid(param) || !this.isValueValid(param));
+    }
+  },
+  watch: {
+    'rule.parameters': {
+      handler(newParams) {
+        this.initLocalParameters(newParams);
+      },
+      deep: true,
+      immediate: true
     },
-
-    cleanParameters() {
-      return this.localParameters?.map(param => {
-        return {
-          name: param.name,
-          value: param.value
-        };
-      });
+    showDialog(newVal, oldVal) {
+      if (!newVal && oldVal) {
+        this.resetLocalState();
+      }
     }
   },
   created() {
-    this.initializeParameters();
-  },
-  watch: {
-    parameters: {
-      immediate: true,
-      handler(newVal) {
-        this.initializeParameters(newVal);
-      }
-    },
-  },
-  beforeDestroy() {
-    if (this.debounceTimer) {
-      clearTimeout(this.debounceTimer);
-    }
+    this.initLocalParameters(this.rule.parameters);
   },
   methods: {
-    initializeParameters(params) {
-      const inputParams = params || [];
+    ...mapActions('ruleBuilder', [
+      'updateParameters',
+      'validateRule'
+    ]),
 
-      if (!this.localParameters || this.localParameters.length === 0) {
-        this.localParameters = inputParams.length > 0
-          ? this.addTouchFlags(inputParams)
-          : [this.createEmptyParameter()];
-
-        this.lastEmittedValue = JSON.stringify(inputParams);
+    initLocalParameters(params) {
+      if (!params || params.length === 0) {
+        this.localParameters = [this.createEmptyParameter()];
+        this.syncWithStore();
         return;
       }
 
-      const currentCleanParams = this.cleanParameters;
-      const inputParamsStr = JSON.stringify(inputParams);
-      const currentCleanParamsStr = JSON.stringify(currentCleanParams);
-
-      if (inputParamsStr !== currentCleanParamsStr) {
-        if (inputParams.length > 0) {
-          this.localParameters = this.addTouchFlags(inputParams);
-        } else if (currentCleanParams.length === 0) {
-          this.localParameters = [this.createEmptyParameter()];
-        }
-
-        this.lastEmittedValue = inputParamsStr;
+      // Only initialize if local state is empty or different
+      if (this.localParameters.length === 0 ||
+        JSON.stringify(this.cleanParameters()) !== JSON.stringify(params)) {
+        this.localParameters = params.map(p => ({
+          name: p.name || '',
+          value: p.value || '',
+          nameTouched: false,
+          valueTouched: false
+        }));
       }
     },
 
-    addTouchFlags(params) {
-      return JSON.parse(JSON.stringify(params)).map(param => ({
-        ...param,
-        nameTouched: false,
-        valueTouched: false
-      }));
+    resetLocalState() {
+      this.localParameters = [];
     },
+
     createEmptyParameter() {
       return {
         name: '',
@@ -180,9 +161,30 @@ export default {
       };
     },
 
+    cleanParameters() {
+      return this.localParameters.map(p => ({
+        name: p.name,
+        value: p.value
+      }));
+    },
+
+    syncWithStore() {
+      this.updateParameters(this.cleanParameters());
+      this.validateRule();
+    },
+
+    isNameValid(param) {
+      console.log('here', param, {status: param.name && param.name.trim() !== '' })
+      return param.name && param.name.trim() !== '';
+    },
+
+    isValueValid(param) {
+      return param.value && param.value.trim() !== '';
+    },
+
     addParameter() {
       this.localParameters.push(this.createEmptyParameter());
-      this.emitParametersUpdate();
+      this.syncWithStore();
     },
 
     removeParameter(index) {
@@ -192,48 +194,7 @@ export default {
         this.localParameters.push(this.createEmptyParameter());
       }
 
-      this.emitParametersUpdate();
-    },
-
-    validateParameter(value, _field) {
-      return typeof value === 'string' && value.trim() !== '';
-    },
-
-    markAsTouched(param, field) {
-      if (field === 'name') {
-        param.nameTouched = true;
-      } else if (field === 'value') {
-        param.valueTouched = true;
-      }
-    },
-
-    shouldShowError(param, field) {
-      if (field === 'name') {
-        return param.nameTouched && !this.validateParameter(param.name, 'name');
-      } else if (field === 'value') {
-        return param.valueTouched && !this.validateParameter(param.value, 'value');
-      }
-      return false;
-    },
-
-    onInputChange() {
-      if (this.debounceTimer) {
-        clearTimeout(this.debounceTimer);
-      }
-
-      this.debounceTimer = setTimeout(() => {
-        this.emitParametersUpdate();
-      }, 300); // 300ms debounce for typing
-    },
-
-    emitParametersUpdate() {
-      const cleanParams = this.cleanParameters;
-      const cleanParamsStr = JSON.stringify(cleanParams);
-
-      if (cleanParamsStr !== this.lastEmittedValue) {
-        this.lastEmittedValue = cleanParamsStr;
-        this.$emit('update:parameters', cleanParams);
-      }
+      this.syncWithStore();
     }
   }
 };

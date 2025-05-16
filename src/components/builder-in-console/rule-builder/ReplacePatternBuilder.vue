@@ -1,93 +1,97 @@
 <template>
   <div class="replace-pattern-builder">
     <div class="pattern-row">
-      <SelectDropdown
-        :selected.sync="localPattern.field"
+      <select-dropdown
+        :selected="replacePattern.field || ''"
         :options="RuleService.fields"
         :placeholder="$t('ruleBuilder.selectField')"
         menu-width="fit-content"
         class="field-select"
         :label="$t('ruleBuilder.field')"
-        @update:selected="onFieldChange"
+        @update:selected="updateField"
       />
       <div
-        v-if="localPattern.field === RULE_FIELDS.URI_PATH"
+        v-if="replacePattern && replacePattern.field === RULE_FIELDS.URI_PATH"
         style="padding-top: 1.7rem;"
       >
-        <CInputCheckbox
-          :checked="localPattern.withFn"
-          :label="$t('ruleBuilder.useFn')"
-          class="pattern-type-checkbox"
-          @update:checked="switchType($event)"
-        />
+        <a-checkbox
+          :checked="replacePattern.withFn || false"
+          @change="e => switchType(e.target.checked)"
+        >
+          {{ $t('ruleBuilder.useFn') }}
+        </a-checkbox>
       </div>
     </div>
 
     <!-- Dynamic value input based on field type when not using function -->
-    <div v-if="!localPattern.withFn">
+    <div v-if="!replacePattern || !replacePattern.withFn">
       <!-- Select dropdown for fields with options -->
-      <SelectDropdown
+      <select-dropdown
         v-if="fieldMeta.type === 'select'"
-        :selected.sync="localPattern.value"
+        :selected="replacePattern.value || ''"
         :options="fieldMeta.options || []"
-        :placeholder="fieldMeta.placeholder"
+        :placeholder="fieldMeta.placeholder || $t('ruleBuilder.selectValue')"
         class="value-section"
         :label="$t('ruleBuilder.value')"
+        @update:selected="updateValue"
       />
 
       <!-- Number input for number fields -->
       <CInput
         v-else-if="fieldMeta.type === 'number'"
         type="number"
-        v-model="localPattern.value"
-        :placeholder="fieldMeta.placeholder"
+        :value="replacePattern.value || ''"
+        :placeholder="fieldMeta.placeholder || $t('ruleBuilder.enterNumberValue')"
         class="value-section"
         :label="$t('ruleBuilder.value')"
         :min="fieldMeta.min"
         :max="fieldMeta.max"
         :step="fieldMeta.step"
         required
-        @blur="onValueBlur"
-        @input="onValueInput"
-        :is-valid="valueTouched ? isValueValid : undefined"
-        :invalid-feedback="valueError"
+        @blur="handleValueBlur"
+        @input="handleValueInput($event)"
+        :is-valid="valueTouched ? !valueError : undefined"
+        :invalid-feedback="valueTouched ? valueError : undefined"
+        :description="fieldMeta.valueDescription"
       />
 
       <!-- Default text input for other field types -->
       <CInput
         v-else
-        v-model="localPattern.value"
+        :value="replacePattern.value || ''"
         :placeholder="fieldMeta.placeholder || $t('ruleBuilder.enterReplacementValue')"
         class="value-section"
         :label="$t('ruleBuilder.value')"
         required
-        @blur="onValueBlur"
-        @input="onValueInput"
-        :is-valid="valueTouched ? isValueValid : undefined"
-        :invalid-feedback="valueError"
+        @blur="handleValueBlur"
+        @input="handleValueInput($event)"
+        :is-valid="valueTouched ? !valueError : undefined"
+        :invalid-feedback="valueTouched ? valueError : undefined"
+        :description="fieldMeta.valueDescription"
       />
     </div>
 
     <div v-else class="function-section">
       <div class="function-row">
-        <SelectDropdown
-          :selected.sync="localPattern.fn"
+        <select-dropdown
+          :selected="replacePattern.fn || ''"
           :options="functions"
           :placeholder="$t('ruleBuilder.selectFunction')"
           menu-width="fit-content"
           :label="$t('ruleBuilder.function')"
+          @update:selected="updateFunction"
         />
 
         <CInput
           :label="$t('ruleBuilder.functionArgument')"
           :placeholder="$t('ruleBuilder.enterFunctionArgument')"
-          v-model="localPattern.fnArg"
+          :value="replacePattern.fnArg || ''"
           class="flex-grow-1"
           required
-          @blur="onFnArgBlur"
-          @input="onFnArgInput"
-          :is-valid="fnArgTouched ? isFnArgValid : undefined"
-          :invalid-feedback="fnArgError"
+          @blur="handleFnArgBlur"
+          @input="handleFnArgInput($event)"
+          :is-valid="fnArgTouched ? !fnArgError : undefined"
+          :invalid-feedback="fnArgTouched ? fnArgError : undefined"
         />
       </div>
 
@@ -99,199 +103,261 @@
 </template>
 
 <script>
+import { mapState, mapActions } from 'vuex';
+import SelectDropdown from "@/components/SelectDropdown.vue";
 import RuleService from "./RuleService.js";
-import { RULE_FIELDS } from "@/views/domain/rule-builder/ConditionService";
-import { mapState } from "vuex";
+import { RULE_FIELDS } from "./ConditionService";
+import ConditionService from "./ConditionService";
 
 export default {
   name: 'ReplacePatternBuilder',
   components: {
-    SelectDropdown: () => import("@/components/SelectDropdown.vue")
-  },
-  props: {
-    pattern: {
-      type: Object,
-      required: true
-    }
+    SelectDropdown
   },
   data() {
     return {
-      localPattern: {
-        field: '',
-        value: '',
-        fn: '',
-        fnArg: '',
-        withFn: false,
-      },
-      functions: RuleService.rewriteFunctions,
-
       valueTouched: false,
-      fnArgTouched: false,
       valueError: null,
+      fnArgTouched: false,
       fnArgError: null
     };
   },
   computed: {
-    RULE_FIELDS() {
-      return RULE_FIELDS
+    ...mapState('ruleBuilder', ['rule', 'showDialog']),
+
+    replacePattern() {
+      if (!this.rule || !this.rule.replace_pattern) {
+        return {
+          field: '',
+          value: '',
+          withFn: false,
+          fn: '',
+          fnArg: ''
+        };
+      }
+
+      return this.rule.replace_pattern ?? {};
     },
+
+    RULE_FIELDS() {
+      return RULE_FIELDS;
+    },
+
     RuleService() {
       return RuleService;
     },
+
+    functions() {
+      return RuleService.rewriteFunctions;
+    },
+
     functionDescription() {
-      if (!this.localPattern.fn) return '';
-      const fn = this.functions.find(f => f.value === this.localPattern.fn);
+      if (!this.replacePattern || !this.replacePattern.fn) return '';
+      const fn = this.functions.find(f => f.value === this.replacePattern.fn);
       return fn ? fn.description : '';
     },
-    isValueValid() {
-      return !this.valueError;
-    },
-    isFnArgValid() {
-      return !this.fnArgError;
-    },
-    // Add field and fieldMeta computed properties
+
     field() {
-      return RuleService.fields.find(f => f.value === this.localPattern.field);
+      if (!this.replacePattern || !this.replacePattern.field) return null;
+      return ConditionService.fields.find(f => f.value === this.replacePattern.field);
     },
+
     fieldMeta() {
       return this.field ? (this.field.meta || {}) : {};
-    },
-    ...mapState('ruleBuilder', ['showDialog']),
+    }
   },
   watch: {
+    'replacePattern.field': function() {
+      this.valueTouched = false;
+      this.valueError = null;
+    },
+    'replacePattern.withFn': function() {
+      this.valueTouched = false;
+      this.valueError = null;
+      this.fnArgTouched = false;
+      this.fnArgError = null;
+    },
+    'replacePattern.fn': function() {
+      this.fnArgTouched = false;
+      this.fnArgError = null;
+    },
     showDialog(newVal, oldVal) {
       if (!newVal & oldVal) {
         this.resetStates();
       }
     },
-    pattern: {
-      handler(newValue) {
-        if (JSON.stringify(newValue) !== JSON.stringify(this.localPattern)) {
-          this.initializeFromProps();
-        }
-      },
-      deep: true,
-      immediate: true
-    },
-    localPattern: {
-      handler(newV) {
-        this.$emit('update:pattern', newV);
-      },
-      deep: true,
-      immediate: true
-    },
-    'localPattern.withFn': function(newVal) {
-      // Reset touched states when switching between types
-      if (newVal) {
-        this.valueTouched = false;
-      } else {
-        this.fnArgTouched = false;
-      }
-    }
   },
   methods: {
-    switchType(field) {
-      this.localPattern.withFn = field;
-    },
+    ...mapActions('ruleBuilder', [
+      'updateNestedValue',
+      'validateRule'
+    ]),
 
-    onFieldChange() {
-      // Reset value when field changes to prevent invalid data
-      this.localPattern.value = '';
-      this.valueError = null;
-      this.valueTouched = false;
-    },
+    switchType(checked) {
+      this.updateNestedValue({
+        path: ['replace_pattern', 'withFn'],
+        value: checked
+      });
 
-    // Value field validation methods
-    onValueBlur() {
-      this.valueTouched = true;
-      this.validateValue();
-    },
-
-    onValueInput() {
-      if (this.valueTouched) {
-        this.validateValue();
-      }
-    },
-
-    validateValue() {
-      this.valueError = null;
-
-      // Check if field has a validate function in the field definition
-      if (this.field && this.field.validate) {
-        this.valueError = this.field.validate(this.localPattern.value);
-      }
-      // Basic validation - required field
-      else if (!this.localPattern.value && this.localPattern.value !== 0) {
-        this.valueError = this.$t('validation.required');
-      }
-
-      return !this.valueError;
-    },
-
-    // Function argument validation methods
-    onFnArgBlur() {
-      this.fnArgTouched = true;
-      this.validateFnArg();
-    },
-
-    onFnArgInput() {
-      if (this.fnArgTouched) {
-        this.validateFnArg();
-      }
-    },
-
-    validateFnArg() {
-      this.fnArgError = null;
-      if (!this.localPattern.fnArg && this.localPattern.fnArg !== 0) {
-        this.fnArgError = this.$t('validation.required');
-      }
-      return !this.fnArgError;
-    },
-
-    initializeFromProps() {
-      const oldPattern = JSON.stringify(this.localPattern);
-      this.localPattern = JSON.parse(JSON.stringify(this.pattern || {}));
-
-      // Set default field if not provided
-      if (!this.localPattern.field) {
-        this.localPattern.field = RuleService.fields[0]?.value;
-      }
-
-      // Determine pattern type
-      if (this.localPattern.fn) {
-        this.localPattern.type = 'function';
+      if (checked) {
+        this.updateNestedValue({
+          path: ['replace_pattern', 'value'],
+          value: ''
+        });
       } else {
-        this.localPattern.type = 'value';
-        if (this.localPattern.value === undefined) {
-          this.localPattern.value = '';
-        }
+        this.updateNestedValue({
+          path: ['replace_pattern', 'fn'],
+          value: ''
+        });
+        this.updateNestedValue({
+          path: ['replace_pattern', 'fnArg'],
+          value: ''
+        });
       }
 
-      // Reset touched states on complete pattern change
-      const newPattern = JSON.stringify(this.localPattern);
-      if (oldPattern !== newPattern) {
-        this.valueTouched = false;
-        this.fnArgTouched = false;
-
-        // If values exist, validate them but don't mark as touched
-        if (this.localPattern.value && this.localPattern.value.length > 0) {
-          this.validateValue();
-        }
-
-        if (this.localPattern.fnArg && this.localPattern.fnArg.length > 0) {
-          this.validateFnArg();
-        }
-      }
+      this.validateRule();
     },
-    resetStates() {
-      this.localPattern = {};
-      this.valueTouched = false;
-      this.fnArgTouched = false;
+
+    updateField(value) {
+      this.updateNestedValue({
+        path: ['replace_pattern', 'field'],
+        value
+      });
+
+      this.updateNestedValue({
+        path: ['replace_pattern', 'value'],
+        value: ''
+      });
+
+      this.validateRule();
+    },
+
+    updateValue(value) {
+      this.updateNestedValue({
+        path: ['replace_pattern', 'value'],
+        value
+      });
+
+      this.valueTouched = true;
+
+      this.validateValueField(value);
+
+      this.validateRule();
+    },
+
+    handleValueBlur() {
+      this.valueTouched = true;
+      this.validateValueField(this.replacePattern.value);
+      this.validateRule();
+    },
+
+    handleValueInput(event) {
+      const value = event.target ? event.target.value : event;
+
+      this.updateNestedValue({
+        path: ['replace_pattern', 'value'],
+        value
+      });
+
+      if (this.valueTouched) {
+        this.validateValueField(value);
+      }
+
+      this.validateRule();
+    },
+
+    validateValueField(value) {
       this.valueError = null;
+
+      if (!this.replacePattern || !this.replacePattern.field) return true;
+
+      if (value === '' || value === undefined) {
+        this.valueError = this.$t('validation.required');
+        return false;
+      }
+
+      const fieldDef = ConditionService.fields.find(f => f.value === this.replacePattern.field);
+      if (fieldDef && fieldDef.validate) {
+        this.valueError = fieldDef.validate(value);
+        if (this.valueError) return false;
+      }
+
+      return true;
+    },
+
+    updateFunction(value) {
+      this.updateNestedValue({
+        path: ['replace_pattern', 'fn'],
+        value
+      });
+
+      this.updateNestedValue({
+        path: ['replace_pattern', 'fnArg'],
+        value: ''
+      });
+
+      this.validateRule();
+    },
+
+    handleFnArgBlur() {
+      this.fnArgTouched = true;
+      this.validateFnArg(this.replacePattern.fnArg);
+      this.validateRule();
+    },
+
+    handleFnArgInput(event) {
+      const value = event.target ? event.target.value : event;
+
+      this.updateNestedValue({
+        path: ['replace_pattern', 'fnArg'],
+        value
+      });
+
+      if (this.fnArgTouched) {
+        this.validateFnArg(value);
+      }
+
+      this.validateRule();
+    },
+
+    validateFnArg(value) {
       this.fnArgError = null;
-    }
+
+      if (!this.replacePattern || !this.replacePattern.fn) return true;
+
+      if (value === '' || value === undefined) {
+        this.fnArgError = this.$t('validation.required');
+        return false;
+      }
+
+      switch (this.replacePattern.fn) {
+        case 'substring':
+          if (isNaN(parseInt(value))) {
+            this.fnArgError = this.$t('ruleBuilder.substringArgMustBeNumber');
+            return false;
+          }
+          break;
+
+        case 'replace':
+          // add specific validation for replace function if needed
+          break;
+
+        case 'lowercase':
+          // Usually no specific validation needed for lowercase
+          break;
+      }
+
+      return true;
+    },
+    
+    resetStates() {
+      this.valueTouched = false;
+      this.valueError = null;
+      this.fnArgTouched = false;
+      this.fnArgError = null;
+    },
   }
-}
+};
 </script>
 
 <style lang="scss" scoped>
@@ -325,7 +391,7 @@ export default {
       font-size: 0.9rem;
     }
   }
-  
+
   .form-select-dropdown.value-section {
     gap: 0;
   }

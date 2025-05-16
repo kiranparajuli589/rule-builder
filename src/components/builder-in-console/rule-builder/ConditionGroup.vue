@@ -40,7 +40,7 @@
           type="danger"
           ghost size="small"
           class="delete-group-btn"
-          @click="$emit('remove-condition')"
+          @click="$emit('remove')"
         >
           {{$t('ruleBuilder.DeleteGroup')}}
         </a-button>
@@ -53,37 +53,35 @@
 
     <div v-else class="group-content">
       <div class="group-conditions">
-        <div v-for="(groupCond, groupIndex) in localGroup.conditions" :key="groupCond.id" class="group-condition">
+        <div v-for="(_, groupIndex) in groupConditions" :key="getConditionId(groupIndex)" class="group-condition">
           <!-- Recursive rendering for nested groups -->
           <condition-group
-            v-if="groupCond.isGroup"
-            :group="groupCond"
-            :is-nested="true"
+            v-if="isGroupCondition(groupIndex)"
+            :group-path="getNestedPath(groupIndex)"
             :nesting-level="nestingLevel + 1"
-            @remove-condition="removeGroupCondition(groupIndex)"
-            @update:group="updateNestedGroup(groupIndex, $event)"
+            @remove="removeGroupCondition(groupIndex)"
           />
 
           <condition-inputs
             v-else
-            :condition="groupCond"
-            :show-remove="localGroup.conditions.length > 1"
+            :condition-path="getNestedPath(groupIndex)"
+            :show-remove="groupConditions.length > 1"
             @remove="removeGroupCondition(groupIndex)"
-            @update:condition="updateCondition(groupIndex, $event)"
             class="condition-item"
+            @copy="handleCopyCondition"
+            
           />
 
-          <div v-if="groupIndex < localGroup.conditions.length - 1" class="join-operator-row">
+          <div v-if="groupIndex < groupConditions.length - 1" class="join-operator-row">
             <select-dropdown
-              :selected.sync="localJoinOperator"
+              :selected="getJoinOperator(groupIndex)"
               :options="joinOperators"
               :placeholder="$t('ruleBuilder.selectOperator')"
-              @update:selected="onJoinOperatorChange"
+              @update:selected="(value) => updateJoinOperator(groupIndex, value)"
             />
           </div>
         </div>
       </div>
-
     </div>
 
     <div class="group-footer">
@@ -97,7 +95,7 @@
           <a-icon type="plus" />
           Add Condition
         </a-button>
-        
+
         <a-button
           v-if="canAddBrackets"
           type="primary"
@@ -126,9 +124,11 @@
 </template>
 
 <script>
+import { mapGetters, mapActions } from 'vuex';
 import SelectDropdown from "@/components/SelectDropdown.vue";
 import ConditionInputs from "./ConditionInputs.vue";
-import ConditionService, { CONDITION_OPERATOR, JOIN_OPERATOR, RULE_FIELDS } from "./ConditionService";
+import ConditionService, { JOIN_OPERATOR, RULE_FIELDS, CONDITION_OPERATOR } from "./ConditionService";
+import RuleService from "./RuleService";
 
 export default {
   name: 'ConditionGroup',
@@ -137,13 +137,9 @@ export default {
     ConditionInputs
   },
   props: {
-    group: {
-      type: Object,
+    groupPath: {
+      type: Array,
       required: true
-    },
-    isNested: {
-      type: Boolean,
-      default: false
     },
     nestingLevel: {
       type: Number,
@@ -153,13 +149,24 @@ export default {
   data() {
     return {
       isCollapsed: false,
-      localGroup: null,
-      localJoinOperator: JOIN_OPERATOR.AND,
       joinOperators: ConditionService.joinOperators,
-      maxDepthLimit: 3
+      maxDepthLimit: RuleService.DEPTH_LIMIT
     };
   },
   computed: {
+    ...mapGetters('ruleBuilder', [
+      'getNestedValue',
+      'getFieldError'
+    ]),
+
+    group() {
+      return this.getNestedValue(this.groupPath) || {};
+    },
+
+    groupConditions() {
+      return this.group.conditions || [];
+    },
+
     groupSummary() {
       const conditionCount = this.countTotalConditions();
       return `Contains ${conditionCount} condition${conditionCount !== 1 ? 's' : ''}`;
@@ -170,15 +177,13 @@ export default {
     },
 
     canAddBrackets() {
-      return this.localGroup && this.localGroup.conditions &&
-        this.localGroup.conditions.length >= 2 &&
+      return this.groupConditions.length >= 2 &&
         !this.hasOnlyGroupsInGroup() &&
         !this.isAtDepthLimit;
     },
 
     canAddNestedGroup() {
-      return this.localGroup && this.localGroup.conditions &&
-        this.localGroup.conditions.length >= 2 &&
+      return this.groupConditions.length >= 2 &&
         !this.isAtDepthLimit;
     }
   },
@@ -189,161 +194,178 @@ export default {
         // Auto-collapse groups beyond level 2
         this.isCollapsed = newLevel > 2;
       }
-    },
-
-    group: {
-      immediate: true,
-      handler(newValue) {
-        if (!this.localGroup || JSON.stringify(newValue) !== JSON.stringify(this.localGroup)) {
-          this.localGroup = JSON.parse(JSON.stringify(newValue));
-          // Initialize localJoinOperator from group
-          if (this.localGroup && this.localGroup.joinOperator) {
-            this.localJoinOperator = this.localGroup.joinOperator;
-          }
-        }
-      }
-    },
-
-    localGroup: {
-      deep: true,
-      handler() {
-        this.emitUpdateAfterDelay();
-      }
-    }
-  },
-  created() {
-    this.localGroup = JSON.parse(JSON.stringify(this.group));
-    // Initialize localJoinOperator from group
-    if (this.localGroup && this.localGroup.joinOperator) {
-      this.localJoinOperator = this.localGroup.joinOperator;
     }
   },
   methods: {
+    ...mapActions('ruleBuilder', [
+      'updateNestedValue',
+      'validateRule'
+    ]),
+
     toggleCollapsed() {
       this.isCollapsed = !this.isCollapsed;
     },
 
+    getConditionId(index) {
+      const condition = this.groupConditions[index];
+      return condition ? condition.id : `group-condition-${index}`;
+    },
+
+    isGroupCondition(index) {
+      const condition = this.groupConditions[index];
+      return condition && condition.isGroup === true;
+    },
+
+    getNestedPath(index) {
+      return [...this.groupPath, 'conditions', index];
+    },
+
+    getJoinOperator(index) {
+      const condition = this.groupConditions[index];
+      return condition ? (condition.joinOperator || JOIN_OPERATOR.AND) : JOIN_OPERATOR.AND;
+    },
+
     countTotalConditions() {
+      if (!this.groupConditions) return 0;
+
       let count = 0;
-
-      if (!this.localGroup || !this.localGroup.conditions) {
-        return count;
-      }
-
-      for (const condition of this.localGroup.conditions) {
+      for (const condition of this.groupConditions) {
         if (condition.isGroup && condition.conditions) {
-          // For groups, count nested conditions recursively
-          for (const nestedCondition of condition.conditions) {
-            count++;
-          }
+          // For groups, count nested conditions
+          count += condition.conditions.length;
         } else {
           count++;
         }
       }
-
       return count;
     },
 
-    updateCondition(index, updatedCondition) {
-      if (this.localGroup.conditions[index]) {
-        this.localGroup.conditions.splice(index, 1, updatedCondition);
-      }
-    },
+    updateJoinOperator(index, value) {
+      // Update the join operator for this condition
+      this.updateNestedValue({
+        path: [...this.groupPath, 'conditions', index, 'joinOperator'],
+        value
+      });
 
-    onJoinOperatorChange(value) {
-      this.localJoinOperator = value;
-      this.localGroup.joinOperator = value;
+      // Update group's join operator to keep consistent
+      this.updateNestedValue({
+        path: [...this.groupPath, 'joinOperator'],
+        value
+      });
 
-      // Always apply the same operator to all join points within this group
-      if (this.localGroup.conditions && this.localGroup.conditions.length > 0) {
-        // For all group conditions, update their join operators if they are groups
-        for (let i = 0; i < this.localGroup.conditions.length; i++) {
-          const condition = this.localGroup.conditions[i];
-          if (condition.isGroup) {
-            condition.joinOperator = value;
+      // If more than 2 conditions, keep join operators consistent
+      if (this.groupConditions.length > 2) {
+        for (let i = 0; i < this.groupConditions.length; i++) {
+          if (i !== index) {
+            this.updateNestedValue({
+              path: [...this.groupPath, 'conditions', i, 'joinOperator'],
+              value
+            });
           }
         }
       }
 
-      this.emitUpdateAfterDelay();
-    },
-
-    updateNestedGroup(index, updatedGroup) {
-      if (this.localGroup.conditions[index]) {
-        this.localGroup.conditions.splice(index, 1, updatedGroup);
-      }
+      // Validate after update
+      this.validateRule();
     },
 
     hasOnlyGroupsInGroup() {
-      return this.localGroup.conditions && this.localGroup.conditions.length > 0 &&
-        this.localGroup.conditions.every(c => c.isGroup);
+      return this.groupConditions.length > 0 &&
+        this.groupConditions.every(c => c.isGroup);
     },
 
     createNewCondition() {
       return {
-        id: '_' + Math.random().toString(36).substr(2, 9),
+        id: RuleService.generateId(),
         field: RULE_FIELDS.URI_PATH,
         operator: CONDITION_OPERATOR.EQUALS,
         value: '',
-        isGroup: false
+        isGroup: false,
+        joinOperator: this.group.joinOperator || JOIN_OPERATOR.AND
       };
     },
 
     addCondition() {
-      if (!this.localGroup.conditions) {
-        this.localGroup.conditions = [];
+      const newCondition = this.createNewCondition();
+      const newConditions = [...this.groupConditions, newCondition];
+
+      this.updateNestedValue({
+        path: [...this.groupPath, 'conditions'],
+        value: newConditions
+      });
+
+      // Validate after update
+      this.validateRule();
+    },
+
+    removeGroupCondition(index) {
+      const newConditions = [...this.groupConditions];
+      newConditions.splice(index, 1);
+
+      // If we removed the last condition, add a new one
+      if (newConditions.length === 0) {
+        newConditions.push(this.createNewCondition());
       }
 
-      // Add new condition to the group
-      this.localGroup.conditions.push(this.createNewCondition());
+      this.updateNestedValue({
+        path: [...this.groupPath, 'conditions'],
+        value: newConditions
+      });
 
-      // If we now have more than 2 conditions, ensure the join operator is consistent
-      if (this.localGroup.conditions.length > 2) {
-        // Make sure all joins use the same operator
-        this.localGroup.joinOperator = this.localJoinOperator;
-      }
+      // Validate after update
+      this.validateRule();
     },
 
     bracketGroupConditions() {
       if (this.isAtDepthLimit) {
-        alert(`Cannot add more brackets - maximum nesting depth of ${this.maxDepthLimit} reached.`);
+        this.$message.warning(`Cannot add brackets - maximum nesting depth of ${this.maxDepthLimit} reached.`);
         return;
       }
 
       // Create a nested group from the existing conditions
       const nestedGroup = {
-        id: '_' + Math.random().toString(36).substr(2, 9),
+        id: RuleService.generateId(),
         isGroup: true,
-        joinOperator: this.localGroup.joinOperator || JOIN_OPERATOR.AND,
-        conditions: JSON.parse(JSON.stringify(this.localGroup.conditions))
+        joinOperator: this.group.joinOperator || JOIN_OPERATOR.AND,
+        conditions: JSON.parse(JSON.stringify(this.groupConditions))
       };
 
       // Clear current conditions and add the nested group with a new condition
-      this.localGroup.conditions = [
+      const newConditions = [
         nestedGroup,
         this.createNewCondition()
       ];
 
+      this.updateNestedValue({
+        path: [...this.groupPath, 'conditions'],
+        value: newConditions
+      });
+
       // Update join operator
-      this.localGroup.joinOperator = JOIN_OPERATOR.AND;
-      this.localJoinOperator = JOIN_OPERATOR.AND;
+      this.updateNestedValue({
+        path: [...this.groupPath, 'joinOperator'],
+        value: JOIN_OPERATOR.AND
+      });
+
+      // Validate after update
+      this.validateRule();
     },
 
     addNestedGroup() {
       if (this.isAtDepthLimit) {
-        alert(`Cannot add nested group - maximum nesting depth of ${this.maxDepthLimit} reached.`);
+        this.$message.warning(`Cannot add nested group - maximum nesting depth of ${this.maxDepthLimit} reached.`);
         return;
       }
 
       let newConditions;
 
-      if (this.localGroup.conditions.length >= 1) {
+      if (this.groupConditions.length >= 1) {
         // Use the last condition for the new group
-        const lastCondition = this.localGroup.conditions[this.localGroup.conditions.length - 1];
+        const lastCondition = this.groupConditions[this.groupConditions.length - 1];
 
         // Create new group with last condition and a new one
         const newGroup = {
-          id: '_' + Math.random().toString(36).substr(2, 9),
+          id: RuleService.generateId(),
           isGroup: true,
           joinOperator: JOIN_OPERATOR.AND,
           conditions: [
@@ -354,13 +376,13 @@ export default {
 
         // Remove last condition and add the new group
         newConditions = [
-          ...this.localGroup.conditions.slice(0, -1),
+          ...this.groupConditions.slice(0, -1),
           newGroup
         ];
       } else {
         // Just add a new group with two empty conditions
         const newGroup = {
-          id: '_' + Math.random().toString(36).substr(2, 9),
+          id: RuleService.generateId(),
           isGroup: true,
           joinOperator: JOIN_OPERATOR.AND,
           conditions: [
@@ -369,31 +391,30 @@ export default {
           ]
         };
 
-        newConditions = [...this.localGroup.conditions, newGroup];
+        newConditions = [...this.groupConditions, newGroup];
       }
 
-      // Update the local group
-      this.localGroup.conditions = newConditions;
+      // Update the group
+      this.updateNestedValue({
+        path: [...this.groupPath, 'conditions'],
+        value: newConditions
+      });
+
+      // Validate after update
+      this.validateRule();
     },
+    handleCopyCondition({ parentPath, currentIndex, newCondition }) {
+      // Get current conditions array
+      const conditions = [...this.getNestedValue(parentPath)];
 
-    removeGroupCondition(index) {
-      const newConditions = [...this.localGroup.conditions];
-      newConditions.splice(index, 1);
+      // Insert new condition after the current one
+      conditions.splice(currentIndex + 1, 0, newCondition);
 
-      // If we removed the last condition, add a new one
-      if (newConditions.length === 0) {
-        newConditions.push(this.createNewCondition());
-      }
-
-      // Update the local group
-      this.localGroup.conditions = newConditions;
-    },
-
-    emitUpdateAfterDelay() {
-      // Use setTimeout to break potential recursive update cycles
-      setTimeout(() => {
-        this.$emit('update:group', JSON.parse(JSON.stringify(this.localGroup)));
-      }, 0);
+      // Update the conditions array
+      this.updateNestedValue({
+        path: parentPath,
+        value: conditions
+      });
     }
   }
 };

@@ -157,7 +157,6 @@ export default  {
       this.$emit('update:config', this.config);
     },
     handleCreateRuleClick() {
-      console.log(this.meta)
       this.openRuleBuilder({
         rule: {},
         meta: this.meta,

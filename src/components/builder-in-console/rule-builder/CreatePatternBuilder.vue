@@ -1,36 +1,34 @@
 <template>
   <div class="create-pattern-builder">
     <div
-      v-for="(condition, index) in localConditions"
+      v-for="(condition, index) in conditions"
       :key="condition.id"
       class="condition-container"
     >
       <!-- Group container for brackets -->
       <condition-group
         v-if="condition.isGroup"
-        :group="condition"
-        :nesting-level="1"
-        @remove-condition="removeCondition(index)"
-        @update:group="updateGroup(index, $event)"
+        :group-path="['create_pattern', 'conditions', index]"
+        @remove="removeCondition(index)"
       />
 
       <!-- Regular condition -->
       <condition-inputs
         v-else
-        :condition="condition"
-        :show-remove="localConditions.length > 1"
+        :condition-path="['create_pattern', 'conditions', index]"
+        :show-remove="conditions.length > 1"
         @remove="removeCondition(index)"
-        @update:condition="updateCondition(index, $event)"
         class="condition-row"
-        :show-labels="localConditions.length <= 1"
+        :show-labels="conditions.length <= 1"
+        @copy="handleCopyCondition"
       />
 
-      <div v-if="index < localConditions.length - 1" class="join-operator-row">
+      <div v-if="index < conditions.length - 1" class="join-operator-row">
         <select-dropdown
-          :selected.sync="joinOperators[index]"
+          :selected="getJoinOperator(index)"
           :options="joinOperatorOptions"
           :placeholder="$t('ruleBuilder.selectJoin')"
-          @update:selected="onJoinOperatorChange(index, $event)"
+          @update:selected="(value) => updateJoinOperator(index, value)"
         />
       </div>
     </div>
@@ -75,9 +73,11 @@
 </template>
 
 <script>
+import { mapState, mapGetters, mapActions } from 'vuex';
 import SelectDropdown from "@/components/SelectDropdown.vue";
 import ConditionInputs from "./ConditionInputs.vue";
-import ConditionService, { CONDITION_OPERATOR, JOIN_OPERATOR, RULE_FIELDS } from "./ConditionService";
+import ConditionService, { JOIN_OPERATOR, RULE_FIELDS, CONDITION_OPERATOR } from "./ConditionService";
+import RuleService from "./RuleService";
 
 export default {
   name: 'CreatePatternBuilder',
@@ -86,188 +86,136 @@ export default {
     ConditionInputs,
     SelectDropdown
   },
-  props: {
-    conditions: {
-      type: Array,
-      default: () => []
-    }
-  },
   data() {
     return {
-      localConditions: [],
-      joinOperators: [],
-      isProcessingAutomatic: false,
       joinOperatorOptions: ConditionService.joinOperators,
-      maxDepthLimit: 3
+      maxDepthLimit: RuleService.DEPTH_LIMIT
     };
   },
   computed: {
+    ...mapState('ruleBuilder', {
+      storeRule: 'rule' // Alias to avoid name collision
+    }),
+    ...mapGetters('ruleBuilder', ['getNestedValue']),
+
+    conditions() {
+      return this.storeRule?.create_pattern?.conditions || [];
+    },
+
     canAddBrackets() {
-      return this.localConditions.length >= 2 &&
+      return this.conditions.length >= 2 &&
         !this.hasOnlyGroups() &&
         !this.wouldExceedDepthLimit();
     },
+
     canAddGroup() {
-      return this.localConditions.length >= 2 &&
+      return this.conditions.length >= 2 &&
         !this.wouldExceedDepthLimit();
     },
-    depthLimitReached() {
-      return this.wouldExceedDepthLimit() && this.localConditions.length >= 2;
-    }
-  },
-  watch: {
-    conditions: {
-      immediate: true,
-      handler(newVal) {
-        // Only initialize if different - prevent infinite loops
-        const newValStr = JSON.stringify(newVal);
-        const localStr = JSON.stringify(this.localConditions);
 
-        if (newValStr !== localStr) {
-          this.initializeFromProps(newVal);
-        }
-      }
+    depthLimitReached() {
+      return this.wouldExceedDepthLimit() && this.conditions.length >= 2;
     }
-  },
-  created() {
-    this.initializeFromProps(this.conditions);
   },
   methods: {
-    initializeFromProps(conditions) {
-      // Deep copy to avoid reference issues
-      this.localConditions = conditions && conditions.length ?
-        JSON.parse(JSON.stringify(conditions)) :
-        [this.createNewCondition()];
+    ...mapActions('ruleBuilder', [
+      'updateNestedValue',
+      'validateRule'
+    ]),
 
-      // Initialize join operators
-      this.joinOperators = [];
-      for (let i = 0; i < this.localConditions.length - 1; i++) {
-        this.joinOperators.push(JOIN_OPERATOR.AND); // Default to AND
+    getJoinOperator(index) {
+      return this.conditions[index]?.joinOperator || JOIN_OPERATOR.AND;
+    },
+
+    updateJoinOperator(index, value) {
+      this.updateNestedValue({
+        path: ['create_pattern', 'conditions', index, 'joinOperator'],
+        value
+      });
+
+      // If we have more than 2 conditions, update all join operators to match
+      if (this.conditions.length > 2) {
+        for (let i = 0; i < this.conditions.length; i++) {
+          if (i !== index && this.conditions[i]) {
+            this.updateNestedValue({
+              path: ['create_pattern', 'conditions', i, 'joinOperator'],
+              value
+            });
+          }
+        }
       }
+
+      // Validate after update
+      this.validateRule();
     },
 
     createNewCondition() {
       return {
-        id: '_' + Math.random().toString(36).substr(2, 9),
+        id: RuleService.generateId(),
         field: RULE_FIELDS.URI_PATH,
         operator: CONDITION_OPERATOR.EQUALS,
         value: '',
-        isGroup: false
+        isGroup: false,
+        joinOperator: JOIN_OPERATOR.AND
       };
     },
 
-    updateCondition(index, updatedCondition) {
-      if (index >= 0 && index < this.localConditions.length) {
-        this.localConditions.splice(index, 1, updatedCondition);
-        this.emitUpdateAfterDelay();
-      }
-    },
-
-    updateGroup(index, updatedGroup) {
-      if (index >= 0 && index < this.localConditions.length) {
-        this.localConditions.splice(index, 1, updatedGroup);
-        this.emitUpdateAfterDelay();
-      }
-    },
-
-    onJoinOperatorChange(index, value) {
-      if (index >= 0 && index < this.joinOperators.length) {
-        // First set the specific join operator that was changed
-        this.joinOperators[index] = value;
-
-        // If we have more than 2 conditions, update all join operators to match
-        if (this.localConditions.length > 2) {
-          // Update all join operators to use the same value
-          for (let i = 0; i < this.joinOperators.length; i++) {
-            this.joinOperators[i] = value;
-          }
-        }
-
-        this.emitUpdateAfterDelay();
-      }
-    },
-
     hasOnlyGroups() {
-      return this.localConditions.length > 0 &&
-        this.localConditions.every(c => c.isGroup);
+      return this.conditions.length > 0 &&
+        this.conditions.every(c => c.isGroup);
     },
 
     wouldExceedDepthLimit() {
-      // Implement a simpler version to prevent loops
-      const currentDepth = this.calculateDepth(this.localConditions);
+      const currentDepth = RuleService.calculateDepth(this.conditions);
       return currentDepth + 1 > this.maxDepthLimit;
     },
 
-    calculateDepth(conditions) {
-      if (!conditions || conditions.length === 0) return 0;
-
-      let maxDepth = 0;
-      for (const condition of conditions) {
-        if (condition.isGroup && condition.conditions) {
-          const groupDepth = 1 + this.calculateDepth(condition.conditions);
-          maxDepth = Math.max(maxDepth, groupDepth);
-        }
-      }
-
-      return maxDepth;
-    },
-
     addCondition() {
-      // Add a new condition at the top level
-      this.localConditions.push(this.createNewCondition());
+      const newCondition = this.createNewCondition();
+      const newConditions = [...this.conditions, newCondition];
 
-      // If we now have 2+ conditions, add a join operator similar to the last one
-      if (this.localConditions.length > 1) {
-        const lastJoinOperator = this.joinOperators[this.joinOperators.length - 1];
-        this.joinOperators.push(lastJoinOperator || JOIN_OPERATOR.AND);
-      } else {
-        this.joinOperators.push(JOIN_OPERATOR.AND);
-      }
+      this.updateNestedValue({
+        path: ['create_pattern', 'conditions'],
+        value: newConditions
+      });
 
-      this.emitUpdateAfterDelay();
+      // Validate after update
+      this.validateRule();
     },
 
     removeCondition(index) {
-      if (index >= 0 && index < this.localConditions.length) {
-        this.localConditions.splice(index, 1);
+      const newConditions = [...this.conditions];
+      newConditions.splice(index, 1);
 
-        // Update join operators array
-        if (index < this.joinOperators.length) {
-          this.joinOperators.splice(index, 1);
-        } else if (this.joinOperators.length > 0) {
-          this.joinOperators.pop();
-        }
-
-        // Ensure at least one condition exists
-        if (this.localConditions.length === 0) {
-          this.localConditions.push(this.createNewCondition());
-        }
-
-        this.emitUpdateAfterDelay();
+      // Ensure at least one condition exists
+      if (newConditions.length === 0) {
+        newConditions.push(this.createNewCondition());
       }
+
+      this.updateNestedValue({
+        path: ['create_pattern', 'conditions'],
+        value: newConditions
+      });
+
+      // Validate after update
+      this.validateRule();
     },
 
     addGroup() {
       if (this.wouldExceedDepthLimit()) {
-        alert(`Cannot add group - maximum nesting depth of ${this.maxDepthLimit} reached.`);
+        this.$message.warning(`Cannot add group - maximum nesting depth of ${this.maxDepthLimit} reached.`);
         return;
       }
 
-      if (this.localConditions.length >= 1) {
+      let newConditions;
+
+      if (this.conditions.length >= 1) {
         // If we already have conditions, create a group with the last condition and a new one
-        const lastCondition = this.localConditions[this.localConditions.length - 1];
-
-        // Remove the last condition
-        this.localConditions.pop();
-
-        // Also remove the last join operator if there is one
-        if (this.joinOperators.length > 0) {
-          this.joinOperators.pop();
-        }
+        const lastCondition = this.conditions[this.conditions.length - 1];
 
         // Create a new group
         const newGroup = {
-          id: '_' + Math.random().toString(36).substr(2, 9),
+          id: RuleService.generateId(),
           isGroup: true,
           joinOperator: JOIN_OPERATOR.AND,
           conditions: [
@@ -276,60 +224,72 @@ export default {
           ]
         };
 
-        // Add the new group
-        this.localConditions.push(newGroup);
+        // Replace the last condition with the group
+        newConditions = [...this.conditions.slice(0, -1), newGroup];
       } else {
         // Just add a new group with two empty conditions
-        this.localConditions.push({
-          id: '_' + Math.random().toString(36).substr(2, 9),
+        const newGroup = {
+          id: RuleService.generateId(),
           isGroup: true,
-          joinOperator: '&&',
+          joinOperator: JOIN_OPERATOR.AND,
           conditions: [
             this.createNewCondition(),
             this.createNewCondition()
           ]
-        });
+        };
+        newConditions = [newGroup];
       }
 
-      // Add a join operator if needed
-      if (this.localConditions.length > 1) {
-        this.joinOperators.push(JOIN_OPERATOR.AND);
-      }
+      this.updateNestedValue({
+        path: ['create_pattern', 'conditions'],
+        value: newConditions
+      });
 
-      this.emitUpdateAfterDelay();
+      // Validate after update
+      this.validateRule();
     },
 
     bracketExistingConditions() {
       if (this.wouldExceedDepthLimit()) {
-        alert(`Cannot bracket conditions - maximum nesting depth of ${this.maxDepthLimit} reached.`);
+        this.$message.warning(`Cannot bracket conditions - maximum nesting depth of ${this.maxDepthLimit} reached.`);
         return;
       }
 
       // Create a group from all existing conditions
       const groupedConditions = {
-        id: '_' + Math.random().toString(36).substr(2, 9),
+        id: RuleService.generateId(),
         isGroup: true,
-        joinOperator: this.joinOperators[0] || JOIN_OPERATOR.AND,
-        conditions: JSON.parse(JSON.stringify(this.localConditions))
+        joinOperator: this.getJoinOperator(0),
+        conditions: JSON.parse(JSON.stringify(this.conditions))
       };
 
-      // Replace existing conditions with the group
-      this.localConditions = [groupedConditions];
-      this.joinOperators = [];
+      // Replace with group and add a new condition
+      const newConditions = [
+        groupedConditions,
+        this.createNewCondition()
+      ];
 
-      // Automatically add a new empty condition
-      this.localConditions.push(this.createNewCondition());
+      this.updateNestedValue({
+        path: ['create_pattern', 'conditions'],
+        value: newConditions
+      });
 
-      // Add join operator
-      this.joinOperators.push(JOIN_OPERATOR.AND);
-
-      this.emitUpdateAfterDelay();
+      // Validate after update
+      this.validateRule();
     },
 
-    emitUpdateAfterDelay() {
-      setTimeout(() => {
-        this.$emit('update:conditions', JSON.parse(JSON.stringify(this.localConditions)));
-      }, 0);
+    handleCopyCondition({ parentPath, currentIndex, newCondition }) {
+      // Get current conditions array
+      const conditions = [...this.getNestedValue(parentPath)];
+
+      // Insert new condition after the current one
+      conditions.splice(currentIndex + 1, 0, newCondition);
+
+      // Update the conditions array
+      this.updateNestedValue({
+        path: parentPath,
+        value: conditions
+      });
     }
   }
 };
