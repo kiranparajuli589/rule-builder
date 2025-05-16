@@ -120,9 +120,6 @@ export default {
       }
     }
   },
-  created() {
-    this.initLocalParameters(this.rule.parameters);
-  },
   methods: {
     ...mapActions('ruleBuilder', [
       'updateParameters',
@@ -169,12 +166,12 @@ export default {
     },
 
     syncWithStore() {
+      console.log("sync", this.cleanParameters());
       this.updateParameters(this.cleanParameters());
       this.validateRule();
     },
 
     isNameValid(param) {
-      console.log('here', param, {status: param.name && param.name.trim() !== '' })
       return param.name && param.name.trim() !== '';
     },
 

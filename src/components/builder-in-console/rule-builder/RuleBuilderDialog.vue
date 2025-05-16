@@ -200,35 +200,24 @@ export default {
     }
   },
   watch: {
-    rule: {
-      deep: true,
-      immediate: false,
-      handler(newVal) {
-        // Only update depth warning, don't modify dirty state here
-        if (this.currentDepth >= RuleService.DEPTH_LIMIT - 1) {
-          this.showDepthWarning = true;
-        }
-        
-        if (this.originalRuleState === null) {
-          this.originalRuleState = newVal;
-        } else {
-          this.isFormDirty = JSON.stringify(this.originalRuleState) !== JSON.stringify(newVal);
-        }
-        
+    showDialog(v) {
+      if (v) {
+        console.log("original state", JSON.parse(JSON.stringify(this.rule)))
+        this.originalRuleState = JSON.parse(JSON.stringify(this.rule));
+        this.isFormDirty = false;
       }
     },
+    rule: {
+      handler(newVal) {
+        if (newVal && this.originalRuleState) {
+          this.isFormDirty = JSON.stringify(newVal) !== JSON.stringify(this.originalRuleState);
+        } else {
+          this.isFormDirty = false;
+        }
+      },
+      deep: true
+    },
   },
-  // created() {
-  //   if (this.rule) {
-  //     this.originalRuleState = JSON.stringify(this.rule);
-  //
-  //     if (this.rule.name) {
-  //       this.validateName(this.rule.name);
-  //     }
-  //
-  //     this.isFormDirty = false;
-  //   }
-  // },
   methods: {
     ...mapActions('ruleBuilder', [
       'setDialogState',
@@ -241,7 +230,7 @@ export default {
       const value = event.target ? event.target.value : event;
 
       // Only set dirty flag if value actually changed
-      const currentName = this.rule.name || '';
+      const currentName = this.originalRuleState?.name || '';
       if (value !== currentName) {
         this.isFormDirty = true;
       }
@@ -250,6 +239,7 @@ export default {
         path: ['name'],
         value
       });
+      
 
       if (this.nameTouched) {
         this.validateName(value);
@@ -282,14 +272,11 @@ export default {
     },
 
     handleSubmit() {
-      // Mark name as touched for validation
       this.nameTouched = true;
       this.validateName(this.rule.name);
 
-      // Validate the entire rule
       this.validateRule();
 
-      // Check for validation errors
       if (this.nameError || this.validationErrors.length > 0) {
         this.$message.error(this.$t('ruleBuilder.FixValidationErrors'));
         return;
@@ -332,7 +319,7 @@ export default {
         centered: true,
         onOk: () => {
           // Reset form to original state by reloading from store
-          this.setRule(this.rule.id ? this.rule : null);
+          this.setRule(this.originalRuleState)
 
           // Reset touched state
           this.nameTouched = false;

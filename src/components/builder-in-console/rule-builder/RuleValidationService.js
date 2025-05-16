@@ -36,7 +36,6 @@ export default {
     return errors;
   },
 
-  // Validate create pattern structure
   validateCreatePattern(createPattern) {
     const errors = [];
 
@@ -57,7 +56,6 @@ export default {
     return errors;
   },
 
-  // Validate logical consistency of expressions
   validateLogicalConsistency(conditions) {
     const errors = [];
 
@@ -89,7 +87,6 @@ export default {
     return errors;
   },
 
-  // Calculate expression nesting depth
   calculateDepth(conditions) {
     if (!conditions || conditions.length === 0) return 0;
 
@@ -104,7 +101,6 @@ export default {
     return maxDepth;
   },
 
-  // Validate replace pattern structure (not field values)
   validateReplacePatternStructure(replacePattern) {
     const errors = [];
 
@@ -116,7 +112,6 @@ export default {
     return errors;
   },
 
-  // Validate parameters structure (not field values)
   validateParametersStructure(parameters) {
     const errors = [];
 

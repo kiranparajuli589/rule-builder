@@ -228,21 +228,31 @@ export default {
     };
   },
 
-  initializeRule() {
-    return {
+  initializeRule(type) {
+    let r = {
       create_pattern: {
         conditions: [this.newCondition()]
       },
-      replace_pattern: {
-        field: RULE_FIELDS.URI_PATH,
-        value: '',
-        withFn: false
-      }
     };
+    if (type === 'standard') {
+      r = {
+        ...r,
+        replace_pattern: {
+          field: RULE_FIELDS.URI_PATH,
+          value: '',
+          withFn: false
+        }
+      }
+    } else if (type === 'parameters') {
+      r = {
+        ...r,
+        parameters: [this.newParameter()]
+      }
+    }
+    return r;
   },
 
   validateRule(rule, replacePatternType = 'standard') {
-    // Basic validation
     const createPattern = rule.create_pattern;
 
     // Check if create pattern has at least one condition
