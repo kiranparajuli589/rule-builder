@@ -41,6 +41,7 @@ import { REWRITE_RULES } from "@/utilities/constants";
 import RuleList from "./RuleList.vue";
 import RuleBuilderDialog from "@/views/domain/rule-builder/RuleBuilderDialog.vue";
 import SimpleEmpty from "@/views/domain/SimpleEmpty";
+import { RuleCleanerUtil } from "@/views/domain/rule-builder/RuleCleaner";
 
 export default {
   name: 'UrlRewrite',
@@ -145,7 +146,6 @@ export default {
         this.updateRules(updatedRules, configKey);
       }
     },
-
     submitRule(rule) {
       const configKey = rule?.meta?.configKey;
       const rules = [...this.getRules(configKey)];
@@ -153,21 +153,24 @@ export default {
       const existingIndex = rules.findIndex(r => r.id === rule.id);
 
       if (existingIndex !== -1) {
-        // Update existing rule
-        rules[existingIndex] = rule;
+        rules[existingIndex] = {
+          ...rule,
+          id: rule.id
+        };
       } else {
-        // Create new rule with ID
-        rule.id = this.generateId();
-        rule.enabled = true;
-        rules.push(rule);
+        rules.push({
+          ...rule,
+          id: this.generateId(),
+          enabled: true
+        });
       }
 
       this.updateRules(rules, configKey);
     },
-
+    
     updateRules(rules, configKey) {
       if (!configKey) return;
-      this.$emit('update:input', { values: rules, configKey });
+      this.$emit('update:input', { values: RuleCleanerUtil.cleanForApi(rules), configKey });
     },
 
     generateId() {

@@ -1,166 +1,127 @@
-import Vue from 'vue'
-import Vuex from 'vuex'
-import security from './modules/security'
-import transaction from './modules/transaction'
-import websocket from './modules/websocket'
-import ruleBuilder from './modules/rule-builder'
-import {i18n, selectedLocale} from '@/plugins/i18n'
-import Cookies from 'js-cookie'
-import {ADJUSTMENT_TYPE, TIME_ADJUSTMENTS} from '@/views/domain/charts/TimeRangePicker';
+import RuleService from "@/views/domain/rule-builder/RuleService";
+import RuleValidationService from "@/views/domain/rule-builder/RuleValidationService";
 import {
-  subMinutes,
-} from 'date-fns';
-import axios from '@/plugins/axios';
-import {
-  FETCH_COIN_SUPPORT, FETCH_COIN_SUPPORT_IF_EMPTY,
-  FETCH_SUBSCRIPTIONS, SET_SELECTED_SUBSCRIPTION,
-} from '@/store/types';
-import {subscriptionPlan} from '@/utilities/api';
-
-Vue.use(Vuex)
-
-const SUBSCRIPTION_CACHE_KEY = 'subscriptions';
-
-let _subscriptions = [];
-if (window.localStorage && localStorage[SUBSCRIPTION_CACHE_KEY]) {
-  _subscriptions = JSON.parse(localStorage[SUBSCRIPTION_CACHE_KEY]);
-}
-
-let _selectedSubscription = null;
-if (_subscriptions.length) {
-  _selectedSubscription = pickDefaultSelectedSubscription(_subscriptions);
-}
+  SET_RULE,
+  SET_DIALOG_STATE,
+  SET_META,
+  SET_REPLACE_PATTERN_TYPE,
+  UPDATE_PARAMETERS,
+  UPDATE_NESTED_VALUE,
+  SET_VALIDATION_ERRORS
+} from "@/store/types";
 
 const state = {
-  sidebarShow: 'responsive',
-  sidebarMinimize: false,
-  locale: selectedLocale,
-  auth: {
-    authenticated: false
-  },
-  balance: 0,
-  timeRangePicker: {
-    range: {
-      start: subMinutes(new Date(), 15),
-      end: new Date(),
-    },
-    adjustment: [ADJUSTMENT_TYPE.RELATIVE, TIME_ADJUSTMENTS.MIN_15]
-  },
-  coinSupports: [],
-  subscriptions: _subscriptions,
-  selectedSubscription: _selectedSubscription,
+  showDialog: false,
+  rule: {},
+  meta: null,
+  replacePatternType: 'standard',
+  validationErrors: [],
 }
 
 const mutations = {
-  toggleSidebarDesktop(state) {
-    const sidebarOpened = [true, 'responsive'].includes(state.sidebarShow)
-    state.sidebarShow = sidebarOpened ? false : 'responsive'
+  [SET_RULE](state, rule) {
+    state.rule = rule;
   },
-  toggleSidebarMobile(state) {
-    const sidebarClosed = [false, 'responsive'].includes(state.sidebarShow)
-    state.sidebarShow = sidebarClosed ? true : 'responsive'
+  [SET_DIALOG_STATE](state, showDialog) {
+    state.showDialog = showDialog;
   },
-  set(state, [variable, value]) {
-    state[variable] = value
+  [SET_META](state, meta) {
+    state.meta = meta;
   },
-  setLocale(state, newLocale) {
-    state.locale = newLocale
-    i18n.locale = state.locale;
-    Cookies.set('locale', state.locale)
+  [SET_REPLACE_PATTERN_TYPE](state, type) {
+    state.replacePatternType = type;
   },
-  setTimeRange(state, newTimeRange) {
-    state.timeRangePicker.range = Object.freeze(newTimeRange);
+  [UPDATE_PARAMETERS](state, parameters) {
+    if (state.rule) {
+      state.rule.parameters = parameters;
+    }
   },
-  resetTimeRangePicker(state) {
-    state.timeRangePicker.range = {
-      start: subMinutes(new Date(), 15),
-      end: new Date(),
-    };
-    state.timeRangePicker.adjustment = [ADJUSTMENT_TYPE.RELATIVE, TIME_ADJUSTMENTS.MIN_15];
-  },
-  setCoinSupport(state, coinSupport) {
-    state.coinSupports = coinSupport;
-  },
-  setSubscriptions(state, subscriptions) {
-    state.subscriptions = subscriptions;
-  },
-  [SET_SELECTED_SUBSCRIPTION](state, selectedSubscription) {
-    state.selectedSubscription = selectedSubscription;
-  },
-}
+  [UPDATE_NESTED_VALUE](state, { path, value }) {
+    let target = state.rule;
+    const lastKey = path[path.length - 1];
 
-function pickDefaultSelectedSubscription(subscriptions) {
-  if (!subscriptions.length)
-    return null;
+    // Navigate to the parent object
+    for (let i = 0; i < path.length - 1; i++) {
+      const key = path[i];
+      if (target === null || target === undefined) return;
 
-  return subscriptions[0];
+      if (typeof key === 'number' || !isNaN(parseInt(key))) {
+        target = target[parseInt(key)];
+      } else {
+        target = target[key];
+      }
+    }
+
+    // Update the value
+    if (target !== null && target !== undefined) {
+      target[lastKey] = value;
+    }
+  },
+  [SET_VALIDATION_ERRORS](state, errors) {
+    state.validationErrors = errors;
+  },
 }
 
 const actions = {
-  async initStore(context) {
-    await context.dispatch(FETCH_SUBSCRIPTIONS);
-
-    if (!context.state.subscriptions.length) {
-      return true;
-    }
-
-    window.localStorage && localStorage.setItem(SUBSCRIPTION_CACHE_KEY, JSON.stringify(context.state.subscriptions));
-
-    // select the first subscription as the default selectedSubscription
-    context.commit(SET_SELECTED_SUBSCRIPTION, pickDefaultSelectedSubscription(context.state.subscriptions));
+  setRule({ commit }, rule = null) {
+    commit(SET_RULE, rule ? JSON.parse(JSON.stringify(rule)) : RuleService.initializeRule());
+    commit(SET_VALIDATION_ERRORS, []);
   },
-  changeLocale({commit}, newLocale) {
-    //i18n.locale = newLocale
-    commit('setLocale', newLocale)
-  },
-  [FETCH_COIN_SUPPORT](context) {
-    axios.get('plan/coin-support/').then(response => {
-      context.commit('setCoinSupport', response.data);
-    }).catch(error => {
-      console.log(error)
-    });
-  },
-  [FETCH_COIN_SUPPORT_IF_EMPTY](context) {
-    if (!state.coinSupports.length) {
-      context.dispatch(FETCH_COIN_SUPPORT);
+  setDialogState({ commit }, showDialog) {
+    commit(SET_DIALOG_STATE, showDialog);
+    if (!showDialog) {
+      commit(SET_VALIDATION_ERRORS, []);
     }
   },
-  [FETCH_SUBSCRIPTIONS](context) {
-    return subscriptionPlan().then(response => {
-      context.commit('setSubscriptions', response.data);
-    }).catch(error => {
-      console.log(error)
-    });
+  openDialog({ commit }, { rule = null, meta = null, replacePatternType = 'standard' } = {}) {
+    commit(SET_RULE, rule ? JSON.parse(JSON.stringify(rule)) : RuleService.initializeRule(replacePatternType));
+    commit(SET_META, meta);
+    commit(SET_REPLACE_PATTERN_TYPE, replacePatternType);
+    commit(SET_DIALOG_STATE, true);
+    commit(SET_VALIDATION_ERRORS, []);
   },
-}
-
-
-const getters = {
-  authInfo: state => {
-    return state.security.auth.tokenParsed;
+  updateNestedValue({ commit }, payload) {
+    commit(UPDATE_NESTED_VALUE, payload);
   },
-  language(state) {
-    return state.locale
+  updateParameters({ commit }, parameters) {
+    commit(UPDATE_PARAMETERS, parameters);
   },
-  cname(state) {
-    if (!state.selectedSubscription)
-      return null;
-
-    return state.selectedSubscription.cname + "." + state.selectedSubscription.czone;
+  validateRule({ state, commit }) {
+    const errors = RuleValidationService.validateRule(state.rule);
+    commit(SET_VALIDATION_ERRORS, errors);
+    return errors.length === 0;
   }
 }
 
-const modules = {
-  security,
-  transaction,
-  websocket,
-  ruleBuilder,
+const getters = {
+  getDialogState: state => state.showDialog,
+  getReplacePatternType: state => state.replacePatternType,
+  getNestedValue: state => path => {
+    if (!state.rule) return undefined;
+
+    let value = state.rule;
+    for (const key of path) {
+      if (value === null || value === undefined) return undefined;
+
+      if (typeof key === 'number' || !isNaN(parseInt(key))) {
+        value = value[parseInt(key)];
+      } else {
+        value = value[key];
+      }
+    }
+
+    return value;
+  },
+  getFieldError: state => field => {
+    const error = state.validationErrors.find(err => err.field === field);
+    return error ? error.message : null;
+  }
 }
 
-export default new Vuex.Store({
-  state: state,
-  getters: getters,
-  mutations: mutations,
-  actions: actions,
-  modules: modules
-})
+export default {
+  namespaced: true,
+  state,
+  mutations,
+  actions,
+  getters
+}
