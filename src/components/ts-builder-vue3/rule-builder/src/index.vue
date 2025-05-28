@@ -3,18 +3,17 @@ import { useFluent } from "fluent-vue";
 import { AlertCircle } from "lucide-vue-next";
 import { computed } from "vue";
 
-import { useRulePreview } from "@/composables/useRulePreview";
 import { useRuleBuilderStore } from "@/domain/store";
 
 import CreatePatternBuilder from "./CreatePatternBuilder.vue";
+import RulePreview from "./RulePreview.vue";
 
 const emit = defineEmits<{
 	submit: [rule: any];
 }>();
 
-const store = useRuleBuilderStore();
-const { rulePreview } = useRulePreview();
 const { $t } = useFluent();
+const store = useRuleBuilderStore();
 
 const hasNameError = computed(() =>
 	store.validationErrors.some((e) => e.field === "name")
@@ -75,7 +74,7 @@ const handleReset = () => {
 						{{ $t("rule-builder.fields.rule-name") }}
 					</Label>
 					<Input
-						v-model="store.rule.name"
+						v-model="store.rule?.name"
 						id="rule-name"
 						:placeholder="
 							$t('rule-builder.fields.rule-name-placeholder')
@@ -108,14 +107,7 @@ const handleReset = () => {
 				<slot name="extra-inputs" :extra-inputs="store.extraInputs" />
 
 				<!-- Rule preview -->
-				<div class="space-y-2">
-					<h3 class="text-lg font-semibold">
-						{{ $t("rule-builder.preview-title") }}
-					</h3>
-					<div class="p-4 bg-muted rounded-lg">
-						<code class="text-sm">{{ rulePreview }}</code>
-					</div>
-				</div>
+				<RulePreview />
 
 				<!-- Form actions -->
 				<DialogFooter>

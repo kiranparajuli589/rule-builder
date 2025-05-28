@@ -154,22 +154,25 @@ import {
 	ConditionService,
 	type ConditionDTO,
 	ConditionField,
-	OperatorDefinition,
 	ConditionOperator,
 } from "@/domain/components/rule-builder";
 
-defineProps<{
+interface Props {
 	showRemove?: boolean;
 	showLabels?: boolean;
+}
+
+defineProps<Props>();
+
+const emit = defineEmits<{
+	remove: [];
 }>();
-
-defineEmits<(e: "remove") => void>();
-
-const { $t } = useFluent();
 
 const condition = defineModel<ConditionDTO>("condition", {
 	required: true,
 });
+
+const { $t } = useFluent();
 
 const fields = ConditionService.getFields();
 const operators = ConditionService.getOperators();

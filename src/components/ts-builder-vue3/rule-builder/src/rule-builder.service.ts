@@ -46,7 +46,7 @@ export default {
 		return result;
 	},
 
-	formatReadableRule(conditions: ConditionDTO[]): string {
+	formatReadableRule(conditions?: ConditionDTO[]): string {
 		if (!conditions || conditions.length === 0) return "";
 
 		let result = "";
@@ -59,7 +59,7 @@ export default {
 				result += this.formatReadableRule(condition.conditions);
 				result += ")";
 			} else {
-				const field = condition.field || "";
+				const field = condition.field ?? "";
 				const op = condition.operator || "";
 				const value = condition.value || "";
 

@@ -84,7 +84,7 @@
 		</div>
 
 		<!-- Depth limit warning -->
-		<Alert v-if="isAtDepthLimit" variant="destructive">
+		<Alert v-if="isAtDepthLimit" variant="warning">
 			<AlertCircle class="h-4 w-4" />
 			<AlertDescription>
 				{{
@@ -112,13 +112,14 @@ import {
 
 import ConditionGroup from "./ConditionGroup.vue";
 import ConditionInputs from "./ConditionInputs.vue";
-const { $t } = useFluent();
-const { toast } = useToast();
 
 const conditions = defineModel<ConditionDTO[]>("conditions", {
 	required: true,
 	default: () => [ConditionService.createEmptyCondition()],
 });
+
+const { $t } = useFluent();
+const { toast } = useToast();
 
 const joinOperators = ConditionService.getJoinOperators();
 const depthLimit = RuleService.DEPTH_LIMIT;
