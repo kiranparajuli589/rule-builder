@@ -1,0 +1,42 @@
+{
+	"printWidth": 80,
+	"tabWidth": 4,
+	"useTabs": true,
+	"semi": true,
+	"singleQuote": false,
+	"trailingComma": "es5",
+	"bracketSpacing": true,
+	"arrowParens": "always",
+	"endOfLine": "lf",
+
+	"importOrder": [
+		"^(vue|pinia|zod|vite|vee|fluent|clsx|date|tail|vaul|unplugin|radix|reka|fluid)",
+		"^@[^\\/](.+)$",
+		"^@\\/(.+)$",
+		"^~icons/(.+)$",
+		"^components/(.*)$",
+		"^@utils",
+		"^[./]"
+	],
+
+	"importOrderSeparation": true,
+	"importOrderSortSpecifiers": true,
+
+	"plugins": [
+		"@trivago/prettier-plugin-sort-imports",
+		"prettier-plugin-tailwindcss",
+		"prettier-plugin-vue",
+		"prettier-plugin-organize-attributes"
+	],
+
+	"attributeGroups": [
+		"^v-",
+		"^:?key",
+		"^:?(is|ref)$",
+		"^:?(id|name)$",
+		"^class$",
+		"$DEFAULT",
+		"^aria-",
+		"^data-"
+	]
+}
