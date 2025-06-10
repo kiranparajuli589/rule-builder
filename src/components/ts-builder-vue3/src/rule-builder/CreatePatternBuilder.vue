@@ -1,8 +1,11 @@
 <template>
 	<div class="space-y-4">
+		<pre><code>
+			{{ JSON.stringify(cloneConditionsWithIds(conditions), null, 2) }}
+		</code></pre>
 		<div
 			v-for="(condition, index) in conditions"
-			:key="condition.id"
+			:key="condition.id || `condition-${index}`"
 			class="space-y-2"
 		>
 			<!-- Group condition -->
@@ -141,6 +144,31 @@ const canAddGroup = computed(
 	() => conditions.value.length >= 2 && currentDepth.value < depthLimit
 );
 
+/**
+ * Ensures a condition has a valid ID
+ */
+const ensureConditionId = (condition: ConditionDTO): ConditionDTO => {
+	if (!condition.id) {
+		condition.id = ConditionService.generateId();
+	}
+
+	// Recursively ensure IDs for nested conditions
+	if (condition.isGroup && condition.conditions) {
+		condition.conditions = condition.conditions.map(ensureConditionId);
+	}
+
+	return condition;
+};
+
+/**
+ * Deep clones conditions and ensures all have valid IDs
+ */
+const cloneConditionsWithIds = (conditions: ConditionDTO[]): ConditionDTO[] =>
+	conditions.map((condition) => {
+		const cloned = JSON.parse(JSON.stringify(condition)) as ConditionDTO;
+		return ensureConditionId(cloned);
+	});
+
 const addCondition = () => {
 	const newCondition = ConditionService.createEmptyCondition();
 	conditions.value = [...conditions.value, newCondition];
@@ -185,8 +213,17 @@ const bracketConditions = () => {
 		return;
 	}
 
-	const group = ConditionService.createGroup([...conditions.value]);
-	conditions.value = [group, ConditionService.createEmptyCondition()];
+	// Clone existing conditions with proper IDs
+	const clonedConditions = cloneConditionsWithIds(conditions.value);
+
+	// Create group with cloned conditions
+	const group = ConditionService.createGroup(clonedConditions);
+
+	// Create new condition to go alongside the group
+	const newCondition = ConditionService.createEmptyCondition();
+
+	// Update conditions with the group and new condition
+	conditions.value = [group, newCondition];
 };
 
 const addGroup = () => {
@@ -202,8 +239,15 @@ const addGroup = () => {
 	}
 
 	const lastCondition = conditions.value[conditions.value.length - 1];
+
+	// Clone the last condition with proper ID
+	const clonedCondition = ensureConditionId(
+		JSON.parse(JSON.stringify(lastCondition))
+	);
+
+	// Create group with cloned condition and a new one
 	const group = ConditionService.createGroup([
-		{ ...lastCondition },
+		clonedCondition,
 		ConditionService.createEmptyCondition(),
 	]);
 

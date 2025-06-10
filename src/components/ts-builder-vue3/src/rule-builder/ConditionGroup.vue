@@ -12,7 +12,7 @@
 				<div class="flex items-center gap-2">
 					<Badge variant="secondary">
 						{{
-							$t("rule-builder.labels.group-level", {
+							$t("rule-builder-labels-group-level", {
 								level: nestingLevel,
 							})
 						}}
@@ -49,7 +49,7 @@
 		<CardContent v-if="!isCollapsed" class="space-y-4">
 			<div
 				v-for="(condition, index) in group.conditions"
-				:key="condition.id"
+				:key="condition.id || `group-condition-${index}`"
 				class="space-y-2"
 			>
 				<!-- Nested group -->
@@ -164,7 +164,7 @@ const joinOperators = ConditionService.getJoinOperators();
 
 const groupSummary = computed(() => {
 	const count = group.value.conditions?.length || 0;
-	return $t("rule-builder.labels.group-summary", { count });
+	return $t("rule-builder-labels-group-summary", { count });
 });
 
 const isAtDepthLimit = computed(
@@ -185,6 +185,31 @@ const canAddNestedGroup = computed(
 		group.value.conditions &&
 		group.value.conditions.length >= 2
 );
+
+/**
+ * Ensures a condition has a valid ID
+ */
+const ensureConditionId = (condition: ConditionDTO): ConditionDTO => {
+	if (!condition.id) {
+		condition.id = ConditionService.generateId();
+	}
+
+	// Recursively ensure IDs for nested conditions
+	if (condition.isGroup && condition.conditions) {
+		condition.conditions = condition.conditions.map(ensureConditionId);
+	}
+
+	return condition;
+};
+
+/**
+ * Deep clones conditions and ensures all have valid IDs
+ */
+const cloneConditionsWithIds = (conditions: ConditionDTO[]): ConditionDTO[] =>
+	conditions.map((condition) => {
+		const cloned = JSON.parse(JSON.stringify(condition)) as ConditionDTO;
+		return ensureConditionId(cloned);
+	});
 
 const addCondition = () => {
 	const newCondition = ConditionService.createEmptyCondition();
@@ -231,13 +256,19 @@ const bracketConditions = () => {
 		return;
 	}
 
-	const nestedGroup = ConditionService.createGroup([
-		...(group.value.conditions || []),
-	]);
-	group.value.conditions = [
-		nestedGroup,
-		ConditionService.createEmptyCondition(),
-	];
+	// Clone existing conditions with proper IDs
+	const clonedConditions = cloneConditionsWithIds(
+		group.value.conditions || []
+	);
+
+	// Create nested group with cloned conditions
+	const nestedGroup = ConditionService.createGroup(clonedConditions);
+
+	// Create new condition to go alongside the nested group
+	const newCondition = ConditionService.createEmptyCondition();
+
+	// Update group conditions
+	group.value.conditions = [nestedGroup, newCondition];
 };
 
 const addNestedGroup = () => {
@@ -254,8 +285,15 @@ const addNestedGroup = () => {
 
 	const conditions = group.value.conditions || [];
 	const lastCondition = conditions[conditions.length - 1];
+
+	// Clone the last condition with proper ID
+	const clonedCondition = ensureConditionId(
+		JSON.parse(JSON.stringify(lastCondition))
+	);
+
+	// Create nested group with cloned condition and a new one
 	const nestedGroup = ConditionService.createGroup([
-		{ ...lastCondition },
+		clonedCondition,
 		ConditionService.createEmptyCondition(),
 	]);
 

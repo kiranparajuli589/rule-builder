@@ -2,11 +2,11 @@
 	<div class="flex gap-2 items-start">
 		<!-- Field selector -->
 		<div class="flex-1 space-y-2">
-			<Label v-if="showLabels" :for="`field-${condition.id}`">
+			<Label v-if="showLabels" :for="`field-${conditionId}`">
 				{{ $t("rule-builder-labels-field") }}
 			</Label>
 			<Select
-				:id="`field-${condition.id}`"
+				:id="`field-${conditionId}`"
 				:model-value="condition.field"
 				@update:model-value="updateField"
 			>
@@ -36,11 +36,11 @@
 
 		<!-- Operator selector -->
 		<div class="flex-1 space-y-2">
-			<Label v-if="showLabels" :for="`operator-${condition.id}`">
+			<Label v-if="showLabels" :for="`operator-${conditionId}`">
 				{{ $t("rule-builder-labels-operator") }}
 			</Label>
 			<Select
-				:id="`operator-${condition.id}`"
+				:id="`operator-${conditionId}`"
 				:model-value="condition.operator"
 				@update:model-value="updateOperator"
 			>
@@ -65,14 +65,14 @@
 
 		<!-- Value input -->
 		<div class="flex-1 space-y-2">
-			<Label v-if="showLabels" :for="`value-${condition.id}`">
+			<Label v-if="showLabels" :for="`value-${conditionId}`">
 				{{ $t("rule-builder-labels-value") }}
 			</Label>
 
 			<!-- Select input for fields with options -->
 			<Select
 				v-if="fieldMeta?.type === 'select'"
-				:id="`value-${condition.id}`"
+				:id="`value-${conditionId}`"
 				:model-value="condition.value"
 				@update:model-value="updateValue"
 			>
@@ -93,7 +93,7 @@
 			<!-- Number input -->
 			<Input
 				v-else-if="fieldMeta?.type === 'number'"
-				:id="`value-${condition.id}`"
+				:id="`value-${conditionId}`"
 				type="number"
 				:model-value="condition.value"
 				:placeholder="fieldMeta?.placeholder"
@@ -107,7 +107,7 @@
 			<!-- Text input (default) -->
 			<Input
 				v-else
-				:id="`value-${condition.id}`"
+				:id="`value-${conditionId}`"
 				:model-value="condition.value"
 				:placeholder="
 					fieldMeta?.placeholder ||
@@ -174,6 +174,15 @@ const condition = defineModel<ConditionDTO>("condition", {
 const fields = ConditionService.getFields();
 const operators = ConditionService.getOperators();
 
+// Ensure condition always has an ID
+const conditionId = computed(() => {
+	if (!condition.value?.id) {
+		// eslint-disable-next-line vue/no-side-effects-in-computed-properties
+		condition.value = ConditionService.createEmptyCondition();
+	}
+	return condition.value.id;
+});
+
 const fieldMeta = computed(() => {
 	if (!condition.value.field) return null;
 	return ConditionService.getFieldDefinition(condition.value.field)?.meta;
@@ -202,6 +211,7 @@ const updateOperator = (value: ConditionOperator) => {
 };
 
 const updateValue = (value: string) => {
+	console.log("vv", value);
 	condition.value = {
 		...condition.value,
 		value,
