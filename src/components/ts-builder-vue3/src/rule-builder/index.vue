@@ -24,6 +24,21 @@ const nameError = computed(() => {
 	return error?.message || "";
 });
 
+// Computed property to handle the create_pattern.conditions binding
+const createPatternConditions = computed({
+	get() {
+		return store.rule?.create_pattern?.conditions || [];
+	},
+	set(value) {
+		if (store.rule) {
+			if (!store.rule.create_pattern) {
+				store.rule.create_pattern = { conditions: [] };
+			}
+			store.rule.create_pattern.conditions = value;
+		}
+	},
+});
+
 const handleSubmit = () => {
 	const rule = store.validateAndGetRule();
 	if (rule) {
@@ -49,25 +64,10 @@ const handleReset = () => {
 				</DialogDescription>
 			</DialogHeader>
 
-			<form class="space-y-6 px-6 py-2" @submit.prevent="handleSubmit">
-				<!-- Global validation errors -->
-				<Alert v-if="store.hasErrors" variant="destructive">
-					<AlertCircle class="h-4 w-4" />
-					<AlertTitle>{{
-						$t("rule-builder-validation-errors-title")
-					}}</AlertTitle>
-					<AlertDescription>
-						<ul class="list-disc pl-4 space-y-1">
-							<li
-								v-for="error in store.validationErrors"
-								:key="error.field"
-							>
-								{{ error.message }}
-							</li>
-						</ul>
-					</AlertDescription>
-				</Alert>
-
+			<form
+				class="space-y-6 px-6 py-2 max-h-[80vh] overflow-y-auto"
+				@submit.prevent="handleSubmit"
+			>
 				<!-- Rule name input -->
 				<div v-if="store.rule" class="space-y-2">
 					<Label class="required" for="rule-name">
@@ -97,7 +97,7 @@ const handleReset = () => {
 
 					<CreatePatternBuilder
 						v-if="store.rule"
-						v-model:conditions="store.rule.conditions"
+						v-model:conditions="createPatternConditions"
 					/>
 				</div>
 

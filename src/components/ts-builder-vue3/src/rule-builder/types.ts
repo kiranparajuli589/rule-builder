@@ -25,15 +25,19 @@ export interface ConditionDTO {
 	field?: ConditionField;
 	operator?: ConditionOperator;
 	value?: string;
-	joinOperator?: JoinOperator;
+	joinOperator?: JoinOperator; // Only present when this condition/group joins with previous ones
 	isGroup?: boolean;
+	conditions: ConditionDTO[]; // Only meaningful for groups, but kept for UI consistency
+}
+
+export interface CreatePatternDTO {
 	conditions: ConditionDTO[];
 }
 
 export interface RuleDTO {
 	id?: string;
 	name: string;
-	conditions: ConditionDTO[];
+	create_pattern?: CreatePatternDTO;
 	enabled?: boolean;
 }
 
@@ -55,7 +59,7 @@ export interface FieldDefinition {
 		step?: number;
 		valueDescription?: string;
 	};
-	validate?: (value: any) => string | undefined;
+	validate?: (value?: string) => string | undefined;
 }
 
 export interface OperatorDefinition {

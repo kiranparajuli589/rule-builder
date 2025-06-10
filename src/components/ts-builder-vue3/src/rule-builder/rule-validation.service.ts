@@ -26,24 +26,23 @@ export default {
 		}
 
 		// Validate conditions structure
-		if (!rule.conditions || rule.conditions.length === 0) {
+		const conditions = rule.create_pattern?.conditions || [];
+		if (conditions.length === 0) {
 			errors.push({
 				field: "conditions",
 				message: "At least one condition is required",
 			});
 		} else {
 			// Validate individual conditions
-			const conditionErrors = this.validateConditions(rule.conditions);
+			const conditionErrors = this.validateConditions(conditions);
 			errors.push(...conditionErrors);
 
 			// Validate logical structure
-			const logicalErrors = this.validateLogicalStructure(
-				rule.conditions
-			);
+			const logicalErrors = this.validateLogicalStructure(conditions);
 			errors.push(...logicalErrors);
 
 			// Validate depth limit
-			const depthErrors = this.validateDepthLimit(rule.conditions);
+			const depthErrors = this.validateDepthLimit(conditions);
 			errors.push(...depthErrors);
 		}
 

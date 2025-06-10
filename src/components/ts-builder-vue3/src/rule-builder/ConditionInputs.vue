@@ -1,150 +1,3 @@
-<template>
-	<div class="flex gap-2 items-start">
-		<!-- Field selector -->
-		<div class="flex-1 space-y-2">
-			<Label v-if="showLabels" :for="`field-${conditionId}`">
-				{{ $t("rule-builder-labels-field") }}
-			</Label>
-			<Select
-				:id="`field-${conditionId}`"
-				:model-value="condition.field"
-				@update:model-value="updateField"
-			>
-				<SelectTrigger>
-					<SelectValue
-						:placeholder="
-							$t('rule-builder-placeholders-select-field')
-						"
-					/>
-				</SelectTrigger>
-				<SelectContent>
-					<SelectItem
-						v-for="field in fields"
-						:key="field.value"
-						:value="field.value"
-					>
-						<div>
-							<div class="font-medium">{{ field.label }}</div>
-							<div class="text-xs text-muted-foreground">
-								{{ field.description }}
-							</div>
-						</div>
-					</SelectItem>
-				</SelectContent>
-			</Select>
-		</div>
-
-		<!-- Operator selector -->
-		<div class="flex-1 space-y-2">
-			<Label v-if="showLabels" :for="`operator-${conditionId}`">
-				{{ $t("rule-builder-labels-operator") }}
-			</Label>
-			<Select
-				:id="`operator-${conditionId}`"
-				:model-value="condition.operator"
-				@update:model-value="updateOperator"
-			>
-				<SelectTrigger>
-					<SelectValue
-						:placeholder="
-							$t('rule-builder-placeholders-select-operator')
-						"
-					/>
-				</SelectTrigger>
-				<SelectContent>
-					<SelectItem
-						v-for="op in operators"
-						:key="op.value"
-						:value="op.value"
-					>
-						{{ op.label }}
-					</SelectItem>
-				</SelectContent>
-			</Select>
-		</div>
-
-		<!-- Value input -->
-		<div class="flex-1 space-y-2">
-			<Label v-if="showLabels" :for="`value-${conditionId}`">
-				{{ $t("rule-builder-labels-value") }}
-			</Label>
-
-			<!-- Select input for fields with options -->
-			<Select
-				v-if="fieldMeta?.type === 'select'"
-				:id="`value-${conditionId}`"
-				:model-value="condition.value"
-				@update:model-value="updateValue"
-			>
-				<SelectTrigger :class="{ 'border-destructive': hasError }">
-					<SelectValue :placeholder="fieldMeta.placeholder" />
-				</SelectTrigger>
-				<SelectContent>
-					<SelectItem
-						v-for="option in fieldMeta.options"
-						:key="option.value"
-						:value="option.value"
-					>
-						{{ option.label }}
-					</SelectItem>
-				</SelectContent>
-			</Select>
-
-			<!-- Number input -->
-			<Input
-				v-else-if="fieldMeta?.type === 'number'"
-				:id="`value-${conditionId}`"
-				type="number"
-				:model-value="condition.value"
-				:placeholder="fieldMeta?.placeholder"
-				:min="fieldMeta?.min"
-				:max="fieldMeta?.max"
-				:step="fieldMeta?.step"
-				:class="{ 'border-destructive': hasError }"
-				@update:model-value="updateValue"
-			/>
-
-			<!-- Text input (default) -->
-			<Input
-				v-else
-				:id="`value-${conditionId}`"
-				:model-value="condition.value"
-				:placeholder="
-					fieldMeta?.placeholder ||
-					$t('rule-builder-placeholders-enter-value')
-				"
-				:class="{ 'border-destructive': hasError }"
-				@update:model-value="updateValue"
-			/>
-
-			<!-- Field hint -->
-			<p
-				v-if="fieldMeta?.valueDescription && showLabels"
-				class="text-xs text-muted-foreground"
-			>
-				{{ fieldMeta.valueDescription }}
-			</p>
-
-			<!-- Validation error -->
-			<p v-if="hasError" class="text-xs text-destructive">
-				{{ error }}
-			</p>
-		</div>
-
-		<!-- Remove button -->
-		<Button
-			v-if="showRemove"
-			class="mt-7"
-			type="button"
-			variant="ghost"
-			size="icon"
-			@click="emit('remove')"
-		>
-			<X class="w-4 h-4" />
-		</Button>
-	</div>
-</template>
-
 <script setup lang="ts">
 import { X } from "lucide-vue-next";
 import { computed } from "vue";
@@ -211,10 +64,165 @@ const updateOperator = (value: ConditionOperator) => {
 };
 
 const updateValue = (value: string) => {
-	console.log("vv", value);
 	condition.value = {
 		...condition.value,
 		value,
 	};
 };
 </script>
+
+<template>
+	<div class="flex gap-2 items-start">
+		<!-- Field selector -->
+		<div class="flex-1 space-y-2">
+			<Label v-if="showLabels" :for="`field-${conditionId}`">
+				{{ $t("rule-builder-labels-field") }}
+			</Label>
+			<Select
+				:id="`field-${conditionId}`"
+				:model-value="condition.field"
+				@update:model-value="updateField"
+			>
+				<SelectTrigger>
+					<SelectValue
+						:placeholder="
+							$t('rule-builder-placeholders-select-field')
+						"
+					/>
+				</SelectTrigger>
+				<SelectContent>
+					<SelectItem
+						v-for="field in fields"
+						:key="field.value"
+						:value="field.value"
+					>
+						{{ $t(field.label) }}
+					</SelectItem>
+				</SelectContent>
+			</Select>
+		</div>
+
+		<!-- Operator selector -->
+		<div class="flex-1 space-y-2">
+			<Label v-if="showLabels" :for="`operator-${conditionId}`">
+				{{ $t("rule-builder-labels-operator") }}
+			</Label>
+			<Select
+				:id="`operator-${conditionId}`"
+				:model-value="condition.operator"
+				@update:model-value="updateOperator"
+			>
+				<SelectTrigger>
+					<SelectValue
+						:placeholder="
+							$t('rule-builder-placeholders-select-operator')
+						"
+					/>
+				</SelectTrigger>
+				<SelectContent>
+					<SelectItem
+						v-for="op in operators"
+						:key="op.value"
+						:value="op.value"
+					>
+						{{ $t(op.label) }}
+					</SelectItem>
+				</SelectContent>
+			</Select>
+		</div>
+
+		<!-- Value input -->
+		<div class="flex-1 space-y-2">
+			<Label v-if="showLabels" :for="`value-${conditionId}`">
+				{{ $t("rule-builder-labels-value") }}
+			</Label>
+
+			<!-- Select input for fields with options -->
+			<Select
+				v-if="fieldMeta?.type === 'select'"
+				:id="`value-${conditionId}`"
+				:model-value="condition.value"
+				@update:model-value="updateValue"
+			>
+				<SelectTrigger :class="{ 'border-destructive': hasError }">
+					<SelectValue
+						:placeholder="
+							$t(
+								fieldMeta?.placeholder ??
+									'rule-builder-placeholders-enter-value'
+							)
+						"
+					/>
+				</SelectTrigger>
+				<SelectContent>
+					<SelectItem
+						v-for="option in fieldMeta.options"
+						:key="option.value"
+						:value="option.value"
+					>
+						{{ $t(option.label) }}
+					</SelectItem>
+				</SelectContent>
+			</Select>
+
+			<!-- Number input -->
+			<Input
+				v-else-if="fieldMeta?.type === 'number'"
+				:id="`value-${conditionId}`"
+				type="number"
+				:model-value="condition.value"
+				:placeholder="
+					$t(
+						fieldMeta?.placeholder ??
+							'rule-builder-placeholders-enter-value'
+					)
+				"
+				:min="fieldMeta?.min"
+				:max="fieldMeta?.max"
+				:step="fieldMeta?.step"
+				:class="{ 'border-destructive': hasError }"
+				@update:model-value="updateValue"
+			/>
+
+			<!-- Text input (default) -->
+			<Input
+				v-else
+				:id="`value-${conditionId}`"
+				:model-value="condition.value"
+				:placeholder="
+					$t(
+						fieldMeta?.placeholder ||
+							'rule-builder-placeholders-enter-value'
+					)
+				"
+				:class="{ 'border-destructive': hasError }"
+				@update:model-value="updateValue"
+			/>
+
+			<!-- Field hint -->
+			<p
+				v-if="fieldMeta?.valueDescription && showLabels && !hasError"
+				class="text-xs text-muted-foreground"
+			>
+				{{ $t(fieldMeta.valueDescription) }}
+			</p>
+
+			<!-- Validation error -->
+			<p v-if="hasError" class="text-xs text-destructive">
+				{{ $t(error) }}
+			</p>
+		</div>
+
+		<!-- Remove button -->
+		<Button
+			v-if="showRemove"
+			class="mt-7"
+			type="button"
+			variant="ghost"
+			size="icon"
+			@click="emit('remove')"
+		>
+			<X class="w-4 h-4" />
+		</Button>
+	</div>
+</template>

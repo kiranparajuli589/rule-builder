@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { useFluent } from "fluent-vue";
 import { Code2, AlertTriangle } from "lucide-vue-next";
+import { storeToRefs } from "pinia";
 import { ref, computed } from "vue";
 
 import { Button } from "@/components/ui/button";
 import {
 	RuleService,
 	RuleValidationService,
+	RuleDTO,
 } from "@/domain/components/rule-builder";
 import { useRuleBuilderStore } from "@/domain/store";
 
@@ -18,46 +20,42 @@ withDefaults(defineProps<Props>(), {
 	showJsonToggle: true,
 });
 
-const { $t } = useFluent();
+const { $t: translate } = useFluent();
 const store = useRuleBuilderStore();
+
+const { rule } = storeToRefs(store);
 
 const showJson = ref(false);
 
-const hasValidRule = computed(
-	() =>
-		store.rule && store.rule.conditions && store.rule.conditions.length > 0
-);
-
-const rulePreview = computed(() => {
-	if (!hasValidRule.value) return "";
-	return store.readableRule;
-});
+const rulePreview = computed(() => store.readableRule);
 
 const ruleJson = computed(() => {
-	if (!store.rule) return "{}";
+	if (!rule) return "{}";
 
-	const cleanRule = RuleService.cleanRuleForExport(store.rule);
+	const cleanRule = RuleService.cleanRuleForExport(rule as never as RuleDTO);
 	return JSON.stringify(cleanRule, null, 2);
 });
 
 const hasStructureWarning = computed(() => {
-	if (!store.rule || !store.rule.conditions) return false;
+	const conditions = store?.rule?.create_pattern?.conditions ?? [];
+	if (!store.rule || !conditions.length) return false;
 
 	return (
-		RuleValidationService.requiresBrackets(store.rule.conditions) ||
-		RuleValidationService.hasCircularDependency(store.rule.conditions)
+		RuleValidationService.requiresBrackets(conditions) ||
+		RuleValidationService.hasCircularDependency(conditions)
 	);
 });
 
 const structureWarning = computed(() => {
-	if (!store.rule || !store.rule.conditions) return "";
+	const conditions = store?.rule?.create_pattern?.conditions ?? [];
+	if (!store.rule || conditions) return "";
 
-	if (RuleValidationService.requiresBrackets(store.rule.conditions)) {
-		return $t("rule-builder-warnings-mixed-operators-need-brackets");
+	if (RuleValidationService.requiresBrackets(conditions)) {
+		return translate("rule-builder-warnings-mixed-operators-need-brackets");
 	}
 
-	if (RuleValidationService.hasCircularDependency(store.rule.conditions)) {
-		return $t("rule-builder-warnings-circular-dependency");
+	if (RuleValidationService.hasCircularDependency(conditions)) {
+		return translate("rule-builder-warnings-circular-dependency");
 	}
 
 	return "";
@@ -88,11 +86,7 @@ const structureWarning = computed(() => {
 		</div>
 
 		<div class="p-4 bg-muted rounded-lg">
-			<div v-if="!hasValidRule" class="text-muted-foreground text-sm">
-				{{ $t("rule-builder.preview.empty") }}
-			</div>
-
-			<div v-else-if="!showJson" class="space-y-2">
+			<div v-if="!showJson" class="space-y-2">
 				<code class="text-sm block">{{ rulePreview }}</code>
 
 				<div
@@ -104,9 +98,10 @@ const structureWarning = computed(() => {
 				</div>
 			</div>
 
-			<pre v-else class="text-sm overflow-auto max-h-64">{{
-				ruleJson
-			}}</pre>
+			<pre v-else class="text-sm overflow-auto max-h-64">
+				JSON: {{ ruleJson }}
+			</pre
+			>
 		</div>
 	</div>
 </template>

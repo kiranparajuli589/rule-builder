@@ -1,4 +1,3 @@
-import { $t } from "@/core/plugins/fluent.ts";
 import countries from "@/domain/constants/countries.json";
 
 import {
@@ -15,65 +14,108 @@ export default {
 		return "_" + Math.random().toString(36).substring(2, 9);
 	},
 
-	createEmptyCondition(): ConditionDTO {
-		return {
+	createEmptyCondition(includeJoinOperator: boolean = false): ConditionDTO {
+		const condition: ConditionDTO = {
 			id: this.generateId(),
 			field: ConditionField.URI_PATH,
 			operator: ConditionOperator.EQUALS,
 			value: "",
-			joinOperator: JoinOperator.AND,
 			isGroup: false,
-			conditions: [],
+			conditions: [], // This will be removed for regular conditions
 		};
+
+		// Only add joinOperator if explicitly requested (for non-first conditions)
+		if (includeJoinOperator) {
+			condition.joinOperator = JoinOperator.AND;
+		}
+
+		return condition;
 	},
 
-	createGroup(conditions: ConditionDTO[] = []): ConditionDTO {
-		return {
+	createGroup(
+		conditions: ConditionDTO[] = [],
+		includeJoinOperator: boolean = false
+	): ConditionDTO {
+		const group: ConditionDTO = {
 			id: this.generateId(),
 			isGroup: true,
-			joinOperator: JoinOperator.AND,
 			conditions:
 				conditions.length > 0
 					? conditions
 					: [
-							this.createEmptyCondition(),
-							this.createEmptyCondition(),
+							this.createEmptyCondition(false), // First condition in group has no joinOperator
+							this.createEmptyCondition(true), // Second condition has joinOperator
 						],
 		};
+
+		// Only add joinOperator if this group joins with a previous element
+		if (includeJoinOperator) {
+			group.joinOperator = JoinOperator.AND;
+		}
+
+		return group;
+	},
+
+	// Clean a condition for export (remove empty conditions array from regular conditions)
+	cleanCondition(condition: ConditionDTO): ConditionDTO {
+		const cleaned = {
+			id: condition.id,
+			...(!condition.isGroup && {
+				field: condition.field,
+				operator: condition.operator,
+				value: condition.value,
+			}),
+			isGroup: condition.isGroup || false,
+		} as ConditionDTO;
+
+		// Add joinOperator only if it exists
+		if (condition.joinOperator) {
+			cleaned.joinOperator = condition.joinOperator;
+		}
+
+		// Only add conditions array for groups
+		if (condition.isGroup && condition.conditions) {
+			cleaned.conditions = condition.conditions.map((c) =>
+				this.cleanCondition(c)
+			);
+		} else if (!condition.isGroup) {
+			// For regular conditions, don't include the conditions array
+			// (it's omitted from the cleaned object)
+		}
+
+		return cleaned;
 	},
 
 	getFields(): FieldDefinition[] {
 		return [
 			{
-				label: $t("rule-builder-fields-uri-path"),
+				label: "rule-builder-fields-uri-path",
 				value: ConditionField.URI_PATH,
-				description: $t("rule-builder-fields-uri-path-description"),
+				description: "rule-builder-fields-uri-path-description",
 				meta: {
 					placeholder: "/api/v1/users",
-					valueDescription: $t("rule-builder-fields-uri-path-hint"),
+					valueDescription: "rule-builder-fields-uri-path-hint",
 				},
-				validate: (value: string) => {
-					if (!value) return $t("validation-required");
+				validate: (value?: string) => {
+					if (!value) return "validation-required";
 					if (!value.startsWith("/"))
-						return $t(
-							"rule-builder-validation-path-must-start-with-slash"
-						);
+						return "rule-builder-validation-path-must-start-with-slash";
 					if (!/^[a-zA-Z0-9/.\-_~%:;?&=#@]+$/.test(value)) {
-						return $t("rule-builder-validation-path-invalid-chars");
+						return "rule-builder-validation-path-invalid-chars";
 					}
 					if (value.length > 2048) {
-						return $t("rule-builder-validation-path-too-long");
+						return "rule-builder-validation-path-too-long";
 					}
 					return undefined;
 				},
 			},
 			{
-				label: $t("rule-builder-fields-method"),
+				label: "rule-builder-fields-method",
 				value: ConditionField.METHOD,
-				description: $t("rule-builder-fields-method-description"),
+				description: "rule-builder-fields-method-description",
 				meta: {
 					type: "select",
-					placeholder: $t("rule-builder-fields-method-placeholder"),
+					placeholder: "rule-builder-fields-method-placeholder",
 					options: [
 						{ label: "GET", value: "GET" },
 						{ label: "POST", value: "POST" },
@@ -85,63 +127,61 @@ export default {
 				},
 			},
 			{
-				label: $t("rule-builder-fields-host"),
+				label: "rule-builder-fields-host",
 				value: ConditionField.HOST,
-				description: $t("rule-builder-fields-host-description"),
+				description: "rule-builder-fields-host-description",
 				meta: {
 					placeholder: "example.com",
-					valueDescription: $t("rule-builder-fields-host-hint"),
+					valueDescription: "rule-builder-fields-host-hint",
 				},
-				validate: (value: string) => {
-					if (!value) return $t("validation-required");
+				validate: (value?: string) => {
+					if (!value) return "validation-required";
 					// Basic hostname validation
 					const hostnameRegex =
 						/^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?(\.[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?)*$/;
 					if (!hostnameRegex.test(value)) {
-						return $t("rule-builder-validation-invalid-hostname");
+						return "rule-builder-validation-invalid-hostname";
 					}
 					return undefined;
 				},
 			},
 			{
-				label: $t("rule-builder-fields-user-agent"),
+				label: "rule-builder-fields-user-agent",
 				value: ConditionField.USER_AGENT,
-				description: $t("rule-builder-fields-user-agent-description"),
+				description: "rule-builder-fields-user-agent-description",
 				meta: {
 					placeholder: "Mozilla/5.0...",
 				},
 			},
 			{
-				label: $t("rule-builder-fields-country"),
+				label: "rule-builder-fields-country",
 				value: ConditionField.COUNTRY,
-				description: $t("rule-builder-fields-country-description"),
+				description: "rule-builder-fields-country-description",
 				meta: {
 					type: "select",
-					placeholder: $t("rule-builder-fields-country-placeholder"),
+					placeholder: "rule-builder-fields-country-placeholder",
 					options: this.getCountryOptions(),
 				},
 			},
 			{
-				label: $t("rule-builder-fields-status-code"),
+				label: "rule-builder-fields-status-code",
 				value: ConditionField.STATUS_CODE,
-				description: $t("rule-builder-fields-status-code-description"),
+				description: "rule-builder-fields-status-code-description",
 				meta: {
 					type: "number",
 					placeholder: "200",
 					min: 100,
 					max: 599,
 					step: 1,
-					valueDescription: $t(
-						"rule-builder-fields-status-code-hint"
-					),
+					valueDescription: "rule-builder-fields-status-code-hint",
 				},
-				validate: (value: any) => {
-					if (!value) return $t("validation-required");
+				validate: (value) => {
+					if (!value) return "validation-required";
 					const num = parseInt(value, 10);
 					if (isNaN(num))
-						return $t("rule-builder-validation-must-be-number");
+						return "rule-builder-validation-must-be-number";
 					if (num < 100 || num > 599)
-						return $t("rule-builder-validation-status-code-range");
+						return "rule-builder-validation-status-code-range";
 					return undefined;
 				},
 			},
@@ -151,41 +191,37 @@ export default {
 	getOperators(): OperatorDefinition[] {
 		return [
 			{
-				label: $t("rule-builder-operators-equals"),
+				label: "rule-builder-operators-equals",
 				value: ConditionOperator.EQUALS,
-				description: $t("rule-builder-operators-equals-description"),
+				description: "rule-builder-operators-equals-description",
 			},
 			{
-				label: $t("rule-builder-operators-not-equals"),
+				label: "rule-builder-operators-not-equals",
 				value: ConditionOperator.NOT_EQUALS,
-				description: $t(
-					"rule-builder-operators-not-equals-description"
-				),
+				description: "rule-builder-operators-not-equals-description",
 			},
 			{
-				label: $t("rule-builder-operators-contains"),
+				label: "rule-builder-operators-contains",
 				value: ConditionOperator.CONTAINS,
-				description: $t("rule-builder-operators-contains-description"),
+				description: "rule-builder-operators-contains-description",
 			},
 			{
-				label: $t("rule-builder-operators-starts-with"),
+				label: "rule-builder-operators-starts-with",
 				value: ConditionOperator.STARTS_WITH,
-				description: $t(
-					"rule-builder-operators-starts-with-description"
-				),
+				description: "rule-builder-operators-starts-with-description",
 			},
 			{
-				label: $t("rule-builder-operators-ends-with"),
+				label: "rule-builder-operators-ends-with",
 				value: ConditionOperator.ENDS_WITH,
-				description: $t("rule-builder-operators-ends-with-description"),
+				description: "rule-builder-operators-ends-with-description",
 			},
 		];
 	},
 
 	getJoinOperators() {
 		return [
-			{ label: $t("rule-builder-join-and"), value: JoinOperator.AND },
-			{ label: $t("rule-builder-join-or"), value: JoinOperator.OR },
+			{ label: "rule-builder-join-and", value: JoinOperator.AND },
+			{ label: "rule-builder-join-or", value: JoinOperator.OR },
 		];
 	},
 
@@ -211,7 +247,7 @@ export default {
 		}
 
 		if (!condition.value) {
-			return $t("validation-required");
+			return "validation-required";
 		}
 
 		return undefined;

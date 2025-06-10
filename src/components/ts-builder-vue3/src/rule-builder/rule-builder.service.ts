@@ -11,7 +11,9 @@ export default {
 	createEmptyRule(): RuleDTO {
 		return {
 			name: "",
-			conditions: [ConditionService.createEmptyCondition()],
+			create_pattern: {
+				conditions: [ConditionService.createEmptyCondition()],
+			}, // First condition has no joinOperator
 			enabled: true,
 		};
 	},
@@ -32,23 +34,6 @@ export default {
 		}
 
 		return maxDepth;
-	},
-
-	/**
-	 * Flattens nested conditions into a single array
-	 */
-	flattenConditions(conditions: ConditionDTO[]): ConditionDTO[] {
-		const result: ConditionDTO[] = [];
-
-		for (const condition of conditions) {
-			if (condition.isGroup && condition.conditions) {
-				result.push(...this.flattenConditions(condition.conditions));
-			} else {
-				result.push(condition);
-			}
-		}
-
-		return result;
 	},
 
 	/**
@@ -82,7 +67,7 @@ export default {
 
 			// Add join operator if not last
 			if (i < conditions.length - 1) {
-				const nextJoin = conditions[i].joinOperator || JoinOperator.AND;
+				const nextJoin = condition.joinOperator || JoinOperator.AND;
 				result += ` ${nextJoin} `;
 			}
 		}
@@ -95,32 +80,19 @@ export default {
 	 */
 	cleanRuleForExport(rule: RuleDTO): RuleDTO {
 		const cleanConditions = (conditions: ConditionDTO[]): ConditionDTO[] =>
-			conditions.map((condition) => {
-				const cleaned: ConditionDTO = {
-					id: condition.id,
-					field: condition.field,
-					operator: condition.operator,
-					value: condition.value,
-					isGroup: condition.isGroup || false,
-					conditions: [],
-				};
-
-				if (condition.joinOperator) {
-					cleaned.joinOperator = condition.joinOperator;
-				}
-
-				if (condition.isGroup && condition.conditions) {
-					cleaned.conditions = cleanConditions(condition.conditions);
-				}
-
-				return cleaned;
-			});
+			conditions.map((condition) =>
+				ConditionService.cleanCondition(condition)
+			);
 
 		return {
 			id: rule.id,
 			name: rule.name,
-			conditions: cleanConditions(rule.conditions),
 			enabled: rule.enabled,
+			create_pattern: {
+				conditions: cleanConditions(
+					rule.create_pattern?.conditions ?? []
+				),
+			},
 		};
 	},
 
@@ -129,30 +101,6 @@ export default {
 	 */
 	cloneRule(rule: RuleDTO): RuleDTO {
 		return JSON.parse(JSON.stringify(rule));
-	},
-
-	/**
-	 * Generates a unique ID for conditions/rules
-	 */
-	generateId(): string {
-		return "_" + Math.random().toString(36).substring(2, 9);
-	},
-
-	/**
-	 * Checks if conditions can have nested groups added (within depth limit)
-	 */
-	canAddNestedGroup(conditions: ConditionDTO[]): boolean {
-		const currentDepth = this.calculateDepth(conditions);
-		return currentDepth < this.DEPTH_LIMIT;
-	},
-
-	/**
-	 * Optimizes rule structure by removing unnecessary nesting
-	 */
-	optimizeRuleStructure(rule: RuleDTO): RuleDTO {
-		const optimized = this.cloneRule(rule);
-		optimized.conditions = this.optimizeConditions(optimized.conditions);
-		return optimized;
 	},
 
 	/**
@@ -211,5 +159,34 @@ export default {
 		}
 
 		return { valid: true };
+	},
+
+	/**
+	 * Properly adds join operators to conditions
+	 * First condition in any level should not have joinOperator
+	 * Subsequent conditions should have joinOperator
+	 */
+	normalizeJoinOperators(conditions: ConditionDTO[]): ConditionDTO[] {
+		return conditions.map((condition, index) => {
+			const normalized = { ...condition };
+
+			if (index === 0) {
+				// First condition should not have joinOperator
+				delete normalized.joinOperator;
+			} else {
+				// Subsequent conditions should have joinOperator
+				normalized.joinOperator =
+					condition.joinOperator || JoinOperator.AND;
+			}
+
+			// Recursively normalize nested conditions
+			if (condition.isGroup && condition.conditions) {
+				normalized.conditions = this.normalizeJoinOperators(
+					condition.conditions
+				);
+			}
+
+			return normalized;
+		});
 	},
 };
