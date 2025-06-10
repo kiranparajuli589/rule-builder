@@ -4,7 +4,10 @@ import { Code2, AlertTriangle } from "lucide-vue-next";
 import { ref, computed } from "vue";
 
 import { Button } from "@/components/ui/button";
-import { RuleService } from "@/domain/components/rule-builder";
+import {
+	RuleService,
+	RuleValidationService,
+} from "@/domain/components/rule-builder";
 import { useRuleBuilderStore } from "@/domain/store";
 
 interface Props {
@@ -41,19 +44,19 @@ const hasStructureWarning = computed(() => {
 	if (!store.rule || !store.rule.conditions) return false;
 
 	return (
-		RuleService.requiresBrackets(store.rule.conditions) ||
-		RuleService.hasCircularDependency(store.rule.conditions)
+		RuleValidationService.requiresBrackets(store.rule.conditions) ||
+		RuleValidationService.hasCircularDependency(store.rule.conditions)
 	);
 });
 
 const structureWarning = computed(() => {
 	if (!store.rule || !store.rule.conditions) return "";
 
-	if (RuleService.requiresBrackets(store.rule.conditions)) {
+	if (RuleValidationService.requiresBrackets(store.rule.conditions)) {
 		return $t("rule-builder.warnings.mixed-operators-need-brackets");
 	}
 
-	if (RuleService.hasCircularDependency(store.rule.conditions)) {
+	if (RuleValidationService.hasCircularDependency(store.rule.conditions)) {
 		return $t("rule-builder.warnings.circular-dependency");
 	}
 

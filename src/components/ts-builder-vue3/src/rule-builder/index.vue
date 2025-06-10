@@ -69,12 +69,12 @@ const handleReset = () => {
 				</Alert>
 
 				<!-- Rule name input -->
-				<div class="space-y-2">
+				<div v-if="store.rule" class="space-y-2">
 					<Label class="required" for="rule-name">
 						{{ $t("rule-builder.fields.rule-name") }}
 					</Label>
 					<Input
-						v-model="store.rule?.name"
+						v-model="store.rule.name"
 						id="rule-name"
 						:placeholder="
 							$t('rule-builder.fields.rule-name-placeholder')

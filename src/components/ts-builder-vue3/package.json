@@ -11,10 +11,10 @@
 		"dev": "vite --mode development",
 		"eslint-inspect": "eslint --inspect-config",
 		"lint": "run-p lint:prettier lint:eslint",
-		"lint:eslint": "eslint . --fix",
-		"lint:prettier": "prettier . --write --log-level warn",
+		"lint:eslint": "eslint rule-builder --fix",
+		"lint:prettier": "prettier rule-builder --write --log-level warn",
 		"prepare": "husky",
-		"prettier": "prettier --write .",
+		"prettier": "prettier --write rule-builder",
 		"preview": "vite preview",
 		"type-check": "vue-tsc --build --force"
 	},

@@ -1,13 +1,9 @@
-import ConditionService from "./condition.service";
-import { ConditionDTO, JoinOperator, RuleDTO } from "./types";
+import ConditionService from "./condition.service.ts";
+import { ConditionDTO, JoinOperator, RuleDTO } from "./types.ts";
 
 export default {
 	// Configuration
 	DEPTH_LIMIT: 3,
-
-	generateId(): string {
-		return ConditionService.generateId();
-	},
 
 	createEmptyRule(): RuleDTO {
 		return {
@@ -80,54 +76,6 @@ export default {
 		}
 
 		return result;
-	},
-
-	hasCircularDependency(conditions: ConditionDTO[]): boolean {
-		// Check if the same field appears with conflicting conditions
-		const fieldConditions = new Map<string, Set<string>>();
-
-		const flatConditions = this.flattenConditions(conditions);
-
-		for (const condition of flatConditions) {
-			if (!condition.field || !condition.operator || condition.isGroup)
-				continue;
-
-			const key = `${condition.field}:${condition.operator}`;
-			const existingValues = fieldConditions.get(key) || new Set();
-
-			// Check for conflicting values on same field/operator
-			if (
-				condition.operator === "==" &&
-				existingValues.size > 0 &&
-				!existingValues.has(condition.value || "")
-			) {
-				return true; // Can't equal two different values
-			}
-
-			existingValues.add(condition.value || "");
-			fieldConditions.set(key, existingValues);
-		}
-
-		return false;
-	},
-
-	requiresBrackets(conditions: ConditionDTO[]): boolean {
-		if (conditions.length <= 2) return false;
-
-		// Check if there are mixed operators
-		const operators = new Set<JoinOperator>();
-
-		for (let i = 0; i < conditions.length - 1; i++) {
-			const joinOp = conditions[i].joinOperator;
-			if (joinOp) operators.add(joinOp);
-		}
-
-		return operators.size > 1;
-	},
-
-	canAddNestedGroup(conditions: ConditionDTO[]): boolean {
-		const currentDepth = this.calculateDepth(conditions);
-		return currentDepth < this.DEPTH_LIMIT;
 	},
 
 	cleanRuleForExport(rule: RuleDTO): RuleDTO {

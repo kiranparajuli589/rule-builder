@@ -5,7 +5,7 @@
 		"module": "ESNext",
 		"lib": ["ES2020", "DOM", "DOM.Iterable"],
 		"skipLibCheck": true,
-		"baseUrl": ".",
+		"baseUrl": "./rule-builder",
 		"paths": {
 			"@/*": ["./src/*"]
 		},
@@ -24,5 +24,8 @@
 		"noUnusedParameters": true,
 		"noFallthroughCasesInSwitch": true
 	},
-	"include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue", "typings/*.ts"]
+	"include": [
+      "src/**/*.ts",
+      "src/**/*.tsx",
+      "src/**/*.vue", "typings/*.ts"]
 }

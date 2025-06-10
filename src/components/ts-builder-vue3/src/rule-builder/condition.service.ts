@@ -1,5 +1,4 @@
-import { useFluent } from "fluent-vue";
-
+import { $t } from "@/core/plugins/fluent.ts";
 import countries from "@/domain/constants/countries.json";
 
 import {
@@ -10,8 +9,6 @@ import {
 	JoinOperator,
 	OperatorDefinition,
 } from "./types.ts";
-
-const { $t } = useFluent();
 
 export default {
 	generateId(): string {
@@ -26,6 +23,7 @@ export default {
 			value: "",
 			joinOperator: JoinOperator.AND,
 			isGroup: false,
+			conditions: [],
 		};
 	},
 

@@ -1,6 +1,5 @@
 import {
 	type ConditionDTO,
-	ConditionService,
 	JoinOperator,
 	type RuleDTO,
 	RuleService,
@@ -9,18 +8,6 @@ import {
 export default {
 	// Configuration
 	DEPTH_LIMIT: 3,
-
-	generateId(): string {
-		return ConditionService.generateId();
-	},
-
-	createEmptyRule(): RuleDTO {
-		return {
-			name: "",
-			conditions: [ConditionService.createEmptyCondition()],
-			enabled: true,
-		};
-	},
 
 	flattenConditions(conditions: ConditionDTO[]): ConditionDTO[] {
 		const result: ConditionDTO[] = [];
