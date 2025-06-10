@@ -3,7 +3,7 @@
 		<!-- Field selector -->
 		<div class="flex-1 space-y-2">
 			<Label v-if="showLabels" :for="`field-${condition.id}`">
-				{{ $t("rule-builder.labels.field") }}
+				{{ $t("rule-builder-labels-field") }}
 			</Label>
 			<Select
 				:id="`field-${condition.id}`"
@@ -13,7 +13,7 @@
 				<SelectTrigger>
 					<SelectValue
 						:placeholder="
-							$t('rule-builder.placeholders.select-field')
+							$t('rule-builder-placeholders-select-field')
 						"
 					/>
 				</SelectTrigger>
@@ -37,7 +37,7 @@
 		<!-- Operator selector -->
 		<div class="flex-1 space-y-2">
 			<Label v-if="showLabels" :for="`operator-${condition.id}`">
-				{{ $t("rule-builder.labels.operator") }}
+				{{ $t("rule-builder-labels-operator") }}
 			</Label>
 			<Select
 				:id="`operator-${condition.id}`"
@@ -47,7 +47,7 @@
 				<SelectTrigger>
 					<SelectValue
 						:placeholder="
-							$t('rule-builder.placeholders.select-operator')
+							$t('rule-builder-placeholders-select-operator')
 						"
 					/>
 				</SelectTrigger>
@@ -66,7 +66,7 @@
 		<!-- Value input -->
 		<div class="flex-1 space-y-2">
 			<Label v-if="showLabels" :for="`value-${condition.id}`">
-				{{ $t("rule-builder.labels.value") }}
+				{{ $t("rule-builder-labels-value") }}
 			</Label>
 
 			<!-- Select input for fields with options -->
@@ -111,7 +111,7 @@
 				:model-value="condition.value"
 				:placeholder="
 					fieldMeta?.placeholder ||
-					$t('rule-builder.placeholders.enter-value')
+					$t('rule-builder-placeholders-enter-value')
 				"
 				:class="{ 'border-destructive': hasError }"
 				@update:model-value="updateValue"
@@ -138,7 +138,7 @@
 			type="button"
 			variant="ghost"
 			size="icon"
-			@click="$emit('remove')"
+			@click="emit('remove')"
 		>
 			<X class="w-4 h-4" />
 		</Button>
@@ -146,7 +146,6 @@
 </template>
 
 <script setup lang="ts">
-import { useFluent } from "fluent-vue";
 import { X } from "lucide-vue-next";
 import { computed } from "vue";
 
@@ -171,8 +170,6 @@ const emit = defineEmits<{
 const condition = defineModel<ConditionDTO>("condition", {
 	required: true,
 });
-
-const { $t } = useFluent();
 
 const fields = ConditionService.getFields();
 const operators = ConditionService.getOperators();

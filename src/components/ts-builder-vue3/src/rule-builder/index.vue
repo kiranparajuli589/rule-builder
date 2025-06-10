@@ -12,7 +12,7 @@ const emit = defineEmits<{
 	submit: [rule: any];
 }>();
 
-const { $t } = useFluent();
+const { $t: translate } = useFluent();
 const store = useRuleBuilderStore();
 
 const hasNameError = computed(() =>
@@ -33,7 +33,7 @@ const handleSubmit = () => {
 };
 
 const handleReset = () => {
-	if (confirm($t("rule-builder.confirm-reset"))) {
+	if (confirm(translate("rule-builder-confirm-reset"))) {
 		store.resetRule();
 	}
 };
@@ -43,18 +43,18 @@ const handleReset = () => {
 	<Dialog v-model:open="store.isOpen">
 		<DialogContent class="max-w-5xl">
 			<DialogHeader>
-				<DialogTitle>{{ $t("rule-builder.title") }}</DialogTitle>
+				<DialogTitle>{{ $t("rule-builder-title") }}</DialogTitle>
 				<DialogDescription>
-					{{ $t("rule-builder.description") }}
+					{{ $t("rule-builder-description") }}
 				</DialogDescription>
 			</DialogHeader>
 
-			<form class="space-y-6" @submit.prevent="handleSubmit">
+			<form class="space-y-6 px-6 py-2" @submit.prevent="handleSubmit">
 				<!-- Global validation errors -->
 				<Alert v-if="store.hasErrors" variant="destructive">
 					<AlertCircle class="h-4 w-4" />
 					<AlertTitle>{{
-						$t("rule-builder.validation.errors-title")
+						$t("rule-builder-validation-errors-title")
 					}}</AlertTitle>
 					<AlertDescription>
 						<ul class="list-disc pl-4 space-y-1">
@@ -71,14 +71,12 @@ const handleReset = () => {
 				<!-- Rule name input -->
 				<div v-if="store.rule" class="space-y-2">
 					<Label class="required" for="rule-name">
-						{{ $t("rule-builder.fields.rule-name") }}
+						{{ $t("rule-builder-rule-name") }}
 					</Label>
 					<Input
 						v-model="store.rule.name"
 						id="rule-name"
-						:placeholder="
-							$t('rule-builder.fields.rule-name-placeholder')
-						"
+						:placeholder="$t('rule-builder-rule-name-placeholder')"
 						:class="{ 'border-destructive': hasNameError }"
 					/>
 					<p v-if="hasNameError" class="text-sm text-destructive">
@@ -90,10 +88,10 @@ const handleReset = () => {
 				<div class="space-y-4">
 					<div>
 						<h3 class="text-lg font-semibold">
-							{{ $t("rule-builder.conditions-title") }}
+							{{ $t("rule-builder-conditions-title") }}
 						</h3>
 						<p class="text-sm text-muted-foreground">
-							{{ $t("rule-builder.conditions-description") }}
+							{{ $t("rule-builder-conditions-description") }}
 						</p>
 					</div>
 
@@ -116,10 +114,10 @@ const handleReset = () => {
 						variant="outline"
 						@click="handleReset"
 					>
-						{{ $t("rule-builder.actions.reset") }}
+						{{ $t("reset") }}
 					</Button>
 					<Button type="submit" :disabled="!store.isValid">
-						{{ $t("rule-builder.actions.save") }}
+						{{ $t("save") }}
 					</Button>
 				</DialogFooter>
 			</form>

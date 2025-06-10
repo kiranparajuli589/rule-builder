@@ -30,7 +30,7 @@ const hasValidRule = computed(
 
 const rulePreview = computed(() => {
 	if (!hasValidRule.value) return "";
-	return RuleService.formatReadableRule(store.rule?.conditions);
+	return store.readableRule;
 });
 
 const ruleJson = computed(() => {
@@ -53,11 +53,11 @@ const structureWarning = computed(() => {
 	if (!store.rule || !store.rule.conditions) return "";
 
 	if (RuleValidationService.requiresBrackets(store.rule.conditions)) {
-		return $t("rule-builder.warnings.mixed-operators-need-brackets");
+		return $t("rule-builder-warnings-mixed-operators-need-brackets");
 	}
 
 	if (RuleValidationService.hasCircularDependency(store.rule.conditions)) {
-		return $t("rule-builder.warnings.circular-dependency");
+		return $t("rule-builder-warnings-circular-dependency");
 	}
 
 	return "";

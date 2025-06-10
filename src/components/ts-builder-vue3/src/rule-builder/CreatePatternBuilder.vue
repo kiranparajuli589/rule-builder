@@ -57,7 +57,7 @@
 				@click="addCondition"
 			>
 				<Plus class="w-4 h-4 mr-1" />
-				{{ $t("rule-builder.actions.add-condition") }}
+				{{ $t("rule-builder-actions-add-condition") }}
 			</Button>
 
 			<Button
@@ -68,7 +68,7 @@
 				@click="bracketConditions"
 			>
 				<Brackets class="w-4 h-4 mr-1" />
-				{{ $t("rule-builder.actions.bracket-conditions") }}
+				{{ $t("rule-builder-actions-bracket-conditions") }}
 			</Button>
 
 			<Button
@@ -79,7 +79,7 @@
 				@click="addGroup"
 			>
 				<FolderPlus class="w-4 h-4 mr-1" />
-				{{ $t("rule-builder.actions.add-group") }}
+				{{ $t("rule-builder-actions-add-group") }}
 			</Button>
 		</div>
 
@@ -88,7 +88,7 @@
 			<AlertCircle class="h-4 w-4" />
 			<AlertDescription>
 				{{
-					$t("rule-builder.warnings.depth-limit", {
+					$t("rule-builder-warnings-depth-limit", {
 						limit: depthLimit,
 					})
 				}}
@@ -176,8 +176,8 @@ const updateJoinOperator = (index: number, value: JoinOperator) => {
 const bracketConditions = () => {
 	if (isAtDepthLimit.value) {
 		toast({
-			title: $t("rule-builder.warnings.cannot-add-brackets"),
-			description: $t("rule-builder.warnings.depth-limit", {
+			title: $t("rule-builder-warnings-cannot-add-brackets"),
+			description: $t("rule-builder-warnings-depth-limit", {
 				limit: depthLimit,
 			}),
 			variant: "destructive",
@@ -192,8 +192,8 @@ const bracketConditions = () => {
 const addGroup = () => {
 	if (isAtDepthLimit.value) {
 		toast({
-			title: $t("rule-builder.warnings.cannot-add-group"),
-			description: $t("rule-builder.warnings.depth-limit", {
+			title: $t("rule-builder-warnings-cannot-add-group"),
+			description: $t("rule-builder-warnings-depth-limit", {
 				limit: depthLimit,
 			}),
 			variant: "destructive",

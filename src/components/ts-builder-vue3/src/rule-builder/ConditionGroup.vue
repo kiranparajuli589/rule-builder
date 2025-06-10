@@ -103,7 +103,7 @@
 					@click="addCondition"
 				>
 					<Plus class="w-4 h-4 mr-1" />
-					{{ $t("rule-builder.actions.add-condition") }}
+					{{ $t("rule-builder-actions-add-condition") }}
 				</Button>
 
 				<Button
@@ -114,7 +114,7 @@
 					@click="bracketConditions"
 				>
 					<Brackets class="w-4 h-4 mr-1" />
-					{{ $t("rule-builder.actions.bracket-conditions") }}
+					{{ $t("rule-builder-actions-bracket-conditions") }}
 				</Button>
 
 				<Button
@@ -125,7 +125,7 @@
 					@click="addNestedGroup"
 				>
 					<FolderPlus class="w-4 h-4 mr-1" />
-					{{ $t("rule-builder.actions.add-group") }}
+					{{ $t("rule-builder-actions-add-group") }}
 				</Button>
 			</div>
 		</CardContent>
@@ -138,6 +138,7 @@ import { X, ChevronDown, Plus, Brackets, FolderPlus } from "lucide-vue-next";
 import { ref, computed } from "vue";
 
 import { useToast } from "@/components/ui/toast/use-toast";
+import { $t } from "@/core/plugins/fluent.ts";
 import {
 	ConditionService,
 	RuleService,
@@ -151,7 +152,7 @@ const props = defineProps<{
 	nestingLevel: number;
 }>();
 
-const { $t } = useFluent();
+const { $t: translate } = useFluent();
 const { toast } = useToast();
 
 const group = defineModel<ConditionDTO>("group", {
@@ -221,8 +222,8 @@ const updateJoinOperator = (index: number, value: JoinOperator) => {
 const bracketConditions = () => {
 	if (isAtDepthLimit.value) {
 		toast({
-			title: $t("rule-builder.warnings.cannot-add-brackets"),
-			description: $t("rule-builder.warnings.depth-limit", {
+			title: translate("rule-builder-warnings-cannot-add-brackets"),
+			description: translate("rule-builder-warnings-depth-limit", {
 				limit: RuleService.DEPTH_LIMIT,
 			}),
 			variant: "destructive",
@@ -242,8 +243,8 @@ const bracketConditions = () => {
 const addNestedGroup = () => {
 	if (isAtDepthLimit.value) {
 		toast({
-			title: $t("rule-builder.warnings.cannot-add-group"),
-			description: $t("rule-builder.warnings.depth-limit", {
+			title: translate("rule-builder-warnings-cannot-add-group"),
+			description: translate("rule-builder-warnings-depth-limit", {
 				limit: RuleService.DEPTH_LIMIT,
 			}),
 			variant: "destructive",
