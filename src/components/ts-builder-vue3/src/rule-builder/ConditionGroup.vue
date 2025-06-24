@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useFluent } from "fluent-vue";
 import { X, ChevronDown, Plus, Brackets, FolderPlus } from "lucide-vue-next";
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 
 import { useToast } from "@/components/ui/toast/use-toast";
 import {
@@ -24,16 +24,47 @@ const emit = defineEmits<{
 const { $t: translate } = useFluent();
 const { toast } = useToast();
 
-const group = defineModel<ConditionDTO>("group", {
-	required: true,
+// Use defineModel for the group
+const group = defineModel<ConditionDTO>({ required: true });
+
+// Use a computed ref to ensure reactive updates for deep nesting
+const groupConditions = computed({
+	get: () => group.value?.conditions || [],
+	set: (value: ConditionDTO[]) => {
+		if (group.value) {
+			group.value.conditions = value;
+		}
+	},
 });
 
 const isCollapsed = ref(props.nestingLevel > 2);
 const joinOperators = ConditionService.getJoinOperators();
 
 const groupSummary = computed(() => {
-	const count = group.value.conditions?.length || 0;
-	return $t("rule-builder-labels-group-summary", { count });
+	const count = groupConditions.value.length || 0;
+	const hasNestedGroups = groupConditions.value.some((c) => c.isGroup);
+	const regularConditions = groupConditions.value.filter(
+		(c) => !c.isGroup
+	).length;
+	const nestedGroups = groupConditions.value.filter((c) => c.isGroup).length;
+
+	let summary = `${count} condition${count !== 1 ? "s" : ""}`;
+	if (hasNestedGroups) {
+		summary += ` (${regularConditions} direct, ${nestedGroups} group${nestedGroups !== 1 ? "s" : ""})`;
+	}
+
+	// Add a preview of the first few conditions
+	const preview = groupConditions.value
+		.filter((c) => !c.isGroup && c.field && c.value)
+		.slice(0, 2)
+		.map((c) => `${c.field} ${c.operator} "${c.value}"`)
+		.join(", ");
+
+	if (preview) {
+		summary += ` - ${preview}${groupConditions.value.length > 2 ? "..." : ""}`;
+	}
+
+	return summary;
 });
 
 const isAtDepthLimit = computed(
@@ -43,28 +74,29 @@ const isAtDepthLimit = computed(
 const canAddBrackets = computed(
 	() =>
 		!isAtDepthLimit.value &&
-		group.value.conditions &&
-		group.value.conditions.length >= 2 &&
-		!group.value.conditions.every((c) => c.isGroup)
+		groupConditions.value.length >= 2 &&
+		!groupConditions.value.every((c) => c.isGroup)
 );
 
 const canAddNestedGroup = computed(
-	() =>
-		!isAtDepthLimit.value &&
-		group.value.conditions &&
-		group.value.conditions.length >= 2
+	() => !isAtDepthLimit.value && groupConditions.value.length >= 2
 );
 
 /**
- * Ensures a condition has a valid ID
+ * Ensures a condition has a valid ID and proper structure
  */
 const ensureConditionId = (condition: ConditionDTO): ConditionDTO => {
 	if (!condition.id) {
 		condition.id = ConditionService.generateId();
 	}
 
+	// Ensure conditions array exists for all conditions (for UI consistency)
+	if (!condition.conditions) {
+		condition.conditions = [];
+	}
+
 	// Recursively ensure IDs for nested conditions
-	if (condition.isGroup && condition.conditions) {
+	if (condition.isGroup && condition.conditions.length > 0) {
 		condition.conditions = condition.conditions.map(ensureConditionId);
 	}
 
@@ -72,103 +104,166 @@ const ensureConditionId = (condition: ConditionDTO): ConditionDTO => {
 };
 
 /**
- * Deep clones conditions and ensures all have valid IDs
+ * Normalizes join operators for THIS GROUP ONLY
+ * First condition should never have joinOperator
+ * Subsequent conditions should have joinOperator
+ * DOES NOT affect nested groups - only this level
  */
-const cloneConditionsWithIds = (conditions: ConditionDTO[]): ConditionDTO[] =>
-	conditions.map((condition) => {
-		const cloned = JSON.parse(JSON.stringify(condition)) as ConditionDTO;
-		return ensureConditionId(cloned);
+const normalizeJoinOperatorsThisGroupOnly = (
+	conditionsArray: ConditionDTO[],
+	defaultOperator: JoinOperator = JoinOperator.AND
+): ConditionDTO[] =>
+	conditionsArray.map((condition, index) => {
+		const normalized = { ...condition };
+
+		if (index === 0) {
+			// First condition should never have joinOperator
+			delete normalized.joinOperator;
+		} else {
+			// Subsequent conditions should have joinOperator
+			if (!normalized.joinOperator) {
+				normalized.joinOperator = defaultOperator;
+			}
+		}
+
+		// DO NOT recursively normalize nested conditions - let them manage their own operators
+		// This is the key fix for the scope issue
+
+		return normalized;
 	});
 
+/**
+ * Deep clones conditions and ensures all have valid IDs
+ */
+const cloneConditionsWithIds = (conditions: ConditionDTO[]): ConditionDTO[] => {
+	const cloned = conditions.map((condition) => {
+		const clonedCondition = JSON.parse(
+			JSON.stringify(condition)
+		) as ConditionDTO;
+		return ensureConditionId(clonedCondition);
+	});
+	return normalizeJoinOperatorsThisGroupOnly(cloned);
+};
+
+// Ensure group has proper ID and structure when mounted/updated
+watch(
+	group,
+	(newGroup) => {
+		if (newGroup && !newGroup.id) {
+			newGroup.id = ConditionService.generateId();
+		}
+		if (newGroup && !newGroup.conditions) {
+			newGroup.conditions = [];
+		}
+	},
+	{ immediate: true }
+);
+
 const addCondition = () => {
-	const newCondition = ConditionService.createEmptyCondition();
-	group.value.conditions = [...(group.value.conditions || []), newCondition];
+	const newCondition = ConditionService.createEmptyCondition(false);
+	const updatedConditions = [...groupConditions.value, newCondition];
+	groupConditions.value =
+		normalizeJoinOperatorsThisGroupOnly(updatedConditions);
 };
 
 const removeCondition = (index: number) => {
-	const newConditions = [...(group.value.conditions || [])];
+	const newConditions = [...groupConditions.value];
 	newConditions.splice(index, 1);
 
 	if (newConditions.length === 0) {
-		newConditions.push(ConditionService.createEmptyCondition());
+		newConditions.push(ConditionService.createEmptyCondition(false));
 	}
 
-	group.value.conditions = newConditions;
+	groupConditions.value = normalizeJoinOperatorsThisGroupOnly(newConditions);
 };
 
 const updateJoinOperator = (index: number, value: JoinOperator) => {
-	const newConditions = [...(group.value.conditions || [])];
-	newConditions[index].joinOperator = value;
+	const newConditions = [...groupConditions.value];
 
-	// Keep join operators consistent
+	// Update the specific condition's join operator
+	if (newConditions[index]) {
+		newConditions[index].joinOperator = value;
+	}
+
+	// ONLY keep join operators consistent within THIS GROUP - don't affect nested groups
 	if (newConditions.length > 2) {
 		newConditions.forEach((condition, i) => {
-			if (i !== index) {
+			if (i > 0 && !condition.isGroup) {
+				// Skip first condition and don't change nested groups
 				condition.joinOperator = value;
 			}
 		});
 	}
 
-	group.value.conditions = newConditions;
-	group.value.joinOperator = value;
+	groupConditions.value = normalizeJoinOperatorsThisGroupOnly(
+		newConditions,
+		value
+	);
 };
 
 const bracketConditions = () => {
-	if (isAtDepthLimit.value) {
-		toast({
-			title: translate("rule-builder-warnings-cannot-add-brackets"),
-			description: translate("rule-builder-warnings-depth-limit", {
-				limit: RuleService.DEPTH_LIMIT,
-			}),
-			variant: "destructive",
-		});
-		return;
-	}
-
 	// Clone existing conditions with proper IDs
-	const clonedConditions = cloneConditionsWithIds(
-		group.value.conditions || []
-	);
+	const clonedConditions = cloneConditionsWithIds(groupConditions.value);
 
 	// Create nested group with cloned conditions
-	const nestedGroup = ConditionService.createGroup(clonedConditions);
+	const nestedGroup = ConditionService.createGroup(clonedConditions, false);
+
+	// Normalize only the nested group's internal conditions
+	nestedGroup.conditions = normalizeJoinOperatorsThisGroupOnly(
+		nestedGroup.conditions || []
+	);
 
 	// Create new condition to go alongside the nested group
-	const newCondition = ConditionService.createEmptyCondition();
+	const newCondition = ConditionService.createEmptyCondition(false);
 
 	// Update group conditions
-	group.value.conditions = [nestedGroup, newCondition];
+	const updatedConditions = [nestedGroup, newCondition];
+	groupConditions.value =
+		normalizeJoinOperatorsThisGroupOnly(updatedConditions);
 };
 
 const addNestedGroup = () => {
-	if (isAtDepthLimit.value) {
+	const conditions = groupConditions.value;
+	const lastCondition = conditions[conditions.length - 1];
+
+	// Validate that the last condition is meaningful
+	if (
+		!lastCondition.isGroup &&
+		(!lastCondition.field ||
+			!lastCondition.value ||
+			lastCondition.value.trim() === "")
+	) {
 		toast({
-			title: translate("rule-builder-warnings-cannot-add-group"),
-			description: translate("rule-builder-warnings-depth-limit", {
-				limit: RuleService.DEPTH_LIMIT,
-			}),
+			title: "Cannot add group",
+			description:
+				"Complete the current condition before adding a new group",
 			variant: "destructive",
 		});
 		return;
 	}
-
-	const conditions = group.value.conditions || [];
-	const lastCondition = conditions[conditions.length - 1];
 
 	// Clone the last condition with proper ID
 	const clonedCondition = ensureConditionId(
 		JSON.parse(JSON.stringify(lastCondition))
 	);
 
+	// Remove joinOperator from cloned condition as it will be first in group
+	delete clonedCondition.joinOperator;
+
 	// Create nested group with cloned condition and a new one
-	const nestedGroup = ConditionService.createGroup([
+	const groupConditionsArray = [
 		clonedCondition,
-		ConditionService.createEmptyCondition(),
-	]);
+		ConditionService.createEmptyCondition(false),
+	];
+
+	const nestedGroup = ConditionService.createGroup(
+		normalizeJoinOperatorsThisGroupOnly(groupConditionsArray),
+		false
+	);
 
 	const newConditions = [...conditions];
 	newConditions[newConditions.length - 1] = nestedGroup;
-	group.value.conditions = newConditions;
+	groupConditions.value = normalizeJoinOperatorsThisGroupOnly(newConditions);
 };
 </script>
 
@@ -184,11 +279,7 @@ const addNestedGroup = () => {
 			<div class="flex items-center justify-between">
 				<div class="flex items-center gap-2">
 					<Badge variant="secondary">
-						{{
-							$t("rule-builder-labels-group-level", {
-								level: nestingLevel,
-							})
-						}}
+						Level {{ nestingLevel }}
 					</Badge>
 					<Button
 						v-if="nestingLevel > 1"
@@ -201,6 +292,9 @@ const addNestedGroup = () => {
 							class="w-4 h-4 transition-transform"
 							:class="{ 'rotate-180': isCollapsed }"
 						/>
+						<span class="sr-only">
+							{{ isCollapsed ? "Expand" : "Collapse" }} group
+						</span>
 					</Button>
 				</div>
 
@@ -214,23 +308,32 @@ const addNestedGroup = () => {
 				</Button>
 			</div>
 
-			<p v-if="isCollapsed" class="text-sm text-muted-foreground mt-2">
-				{{ groupSummary }}
-			</p>
+			<!-- Summary when collapsed -->
+			<div
+				v-if="isCollapsed"
+				class="mt-3 p-4 bg-muted/50 rounded-md border"
+			>
+				<div class="text-sm font-medium mb-2">Group Summary</div>
+				<p class="text-sm text-muted-foreground mb-2">
+					{{ groupSummary }}
+				</p>
+				<div class="text-xs text-muted-foreground">
+					<Badge variant="outline" size="sm">
+						Click chevron to expand and edit
+					</Badge>
+				</div>
+			</div>
 		</CardHeader>
 
-		<CardContent v-if="!isCollapsed">
+		<CardContent v-show="!isCollapsed" class="space-y-4">
 			<div
-				v-for="(condition, index) in group.conditions"
-				:key="condition.id || `group-condition-${index}`"
-				:class="{
-					'mb-4': nestingLevel >= 1,
-				}"
+				v-for="(condition, index) in groupConditions"
+				:key="`${group.id}-${condition.id || index}-${nestingLevel}`"
 			>
 				<!-- Nested group -->
 				<ConditionGroup
 					v-if="condition.isGroup"
-					v-model:group="group.conditions[index]"
+					v-model="groupConditions[index]"
 					:nesting-level="nestingLevel + 1"
 					@remove="removeCondition(index)"
 				/>
@@ -238,38 +341,45 @@ const addNestedGroup = () => {
 				<!-- Regular condition -->
 				<ConditionInputs
 					v-else
-					v-model="group.conditions[index]"
-					:show-remove="group.conditions.length > 1"
+					v-model="groupConditions[index]"
+					:show-remove="groupConditions.length > 1"
 					@remove="removeCondition(index)"
 				/>
 
 				<!-- Join operator -->
 				<div
-					v-if="index < group.conditions.length - 1"
-					class="flex justify-center max-w-24"
+					v-if="index < groupConditions.length - 1"
+					class="flex justify-center my-2"
 				>
-					<Select
-						:model-value="condition.joinOperator"
-						@update:model-value="updateJoinOperator(index, $event)"
-					>
-						<SelectTrigger>
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem
-								v-for="op in joinOperators"
-								:key="op.value"
-								:value="op.value"
-							>
-								{{ $t(op.label) }}
-							</SelectItem>
-						</SelectContent>
-					</Select>
+					<div class="max-w-24">
+						<Select
+							:model-value="
+								groupConditions[index + 1]?.joinOperator ||
+								JoinOperator.AND
+							"
+							@update:model-value="
+								updateJoinOperator(index + 1, $event)
+							"
+						>
+							<SelectTrigger>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem
+									v-for="op in joinOperators"
+									:key="op.value"
+									:value="op.value"
+								>
+									{{ $t(op.label) }}
+								</SelectItem>
+							</SelectContent>
+						</Select>
+					</div>
 				</div>
 			</div>
 
 			<!-- Group actions -->
-			<div class="flex gap-2">
+			<div class="flex gap-2 pt-4">
 				<Button
 					type="button"
 					variant="outline"
@@ -277,14 +387,14 @@ const addNestedGroup = () => {
 					@click="addCondition"
 				>
 					<Plus class="w-4 h-4 mr-1" />
-					{{ $t("rule-builder-actions-add-condition") }} xx
+					{{ $t("rule-builder-actions-add-condition") }}
 				</Button>
 
 				<Button
-					v-if="canAddBrackets"
 					type="button"
 					variant="outline"
 					size="sm"
+					:disabled="!canAddBrackets"
 					@click="bracketConditions"
 				>
 					<Brackets class="w-4 h-4 mr-1" />
@@ -292,10 +402,10 @@ const addNestedGroup = () => {
 				</Button>
 
 				<Button
-					v-if="canAddNestedGroup"
 					type="button"
 					variant="outline"
 					size="sm"
+					:disabled="!canAddNestedGroup"
 					@click="addNestedGroup"
 				>
 					<FolderPlus class="w-4 h-4 mr-1" />

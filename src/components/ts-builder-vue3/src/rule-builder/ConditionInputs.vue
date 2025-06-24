@@ -20,9 +20,8 @@ const emit = defineEmits<{
 	remove: [];
 }>();
 
-const condition = defineModel<ConditionDTO>("condition", {
-	required: true,
-});
+// Use defineModel for the condition
+const condition = defineModel<ConditionDTO>({ required: true });
 
 const fields = ConditionService.getFields();
 const operators = ConditionService.getOperators();
@@ -30,7 +29,7 @@ const operators = ConditionService.getOperators();
 // Ensure condition always has an ID
 const conditionId = computed(() => {
 	if (!condition.value?.id) {
-		// eslint-disable-next-line vue/no-side-effects-in-computed-properties
+		// Generate ID if missing
 		condition.value = ConditionService.createEmptyCondition();
 	}
 	return condition.value.id;

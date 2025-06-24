@@ -21,7 +21,7 @@ export default {
 			operator: ConditionOperator.EQUALS,
 			value: "",
 			isGroup: false,
-			conditions: [], // This will be removed for regular conditions
+			conditions: [], // Keep for UI consistency
 		};
 
 		// Only add joinOperator if explicitly requested (for non-first conditions)
@@ -36,16 +36,19 @@ export default {
 		conditions: ConditionDTO[] = [],
 		includeJoinOperator: boolean = false
 	): ConditionDTO {
+		// Ensure all conditions have proper IDs
+		const normalizedConditions =
+			conditions.length > 0
+				? conditions.map((c) => this.ensureConditionStructure(c))
+				: [
+						this.createEmptyCondition(false), // First condition in group has no joinOperator
+						this.createEmptyCondition(true), // Second condition has joinOperator
+					];
+
 		const group: ConditionDTO = {
 			id: this.generateId(),
 			isGroup: true,
-			conditions:
-				conditions.length > 0
-					? conditions
-					: [
-							this.createEmptyCondition(false), // First condition in group has no joinOperator
-							this.createEmptyCondition(true), // Second condition has joinOperator
-						],
+			conditions: normalizedConditions,
 		};
 
 		// Only add joinOperator if this group joins with a previous element
@@ -54,6 +57,29 @@ export default {
 		}
 
 		return group;
+	},
+
+	// Ensure condition has proper structure and ID
+	ensureConditionStructure(condition: ConditionDTO): ConditionDTO {
+		const normalized = { ...condition };
+
+		if (!normalized.id) {
+			normalized.id = this.generateId();
+		}
+
+		// Ensure conditions array exists for UI consistency
+		if (!normalized.conditions) {
+			normalized.conditions = [];
+		}
+
+		// For groups, recursively ensure structure
+		if (normalized.isGroup && normalized.conditions.length > 0) {
+			normalized.conditions = normalized.conditions.map((c) =>
+				this.ensureConditionStructure(c)
+			);
+		}
+
+		return normalized;
 	},
 
 	// Clean a condition for export (remove empty conditions array from regular conditions)
@@ -78,12 +104,44 @@ export default {
 			cleaned.conditions = condition.conditions.map((c) =>
 				this.cleanCondition(c)
 			);
-		} else if (!condition.isGroup) {
-			// For regular conditions, don't include the conditions array
-			// (it's omitted from the cleaned object)
 		}
+		// For regular conditions, don't include the conditions array in the export
 
 		return cleaned;
+	},
+
+	// Normalize join operators in a conditions array
+	normalizeJoinOperators(
+		conditions: ConditionDTO[],
+		defaultOperator: JoinOperator = JoinOperator.AND
+	): ConditionDTO[] {
+		return conditions.map((condition, index) => {
+			const normalized = { ...condition };
+
+			if (index === 0) {
+				// First condition should never have joinOperator
+				delete normalized.joinOperator;
+			} else {
+				// Subsequent conditions should have joinOperator
+				if (!normalized.joinOperator) {
+					normalized.joinOperator = defaultOperator;
+				}
+			}
+
+			// Recursively normalize nested conditions
+			if (
+				normalized.isGroup &&
+				normalized.conditions &&
+				normalized.conditions.length > 0
+			) {
+				normalized.conditions = this.normalizeJoinOperators(
+					normalized.conditions,
+					normalized.joinOperator || defaultOperator
+				);
+			}
+
+			return normalized;
+		});
 	},
 
 	getFields(): FieldDefinition[] {
