@@ -25,21 +25,39 @@ const { toast } = useToast();
 const joinOperators = ConditionService.getJoinOperators();
 const depthLimit = RuleService.DEPTH_LIMIT;
 
+// Calculate current depth of the entire conditions structure
 const currentDepth = computed(() =>
 	RuleService.calculateDepth(conditions.value)
 );
 
 const isAtDepthLimit = computed(() => currentDepth.value >= depthLimit);
 
+// Simulate what depth would be after bracketing
+const depthAfterBracketing = computed(() => {
+	if (conditions.value.length < 2) return currentDepth.value;
+
+	// Bracketing adds one level of nesting to all current conditions
+	return currentDepth.value + 1;
+});
+
+// Simulate what depth would be after adding a group
+const depthAfterGrouping = computed(() => {
+	if (conditions.value.length < 2) return currentDepth.value;
+
+	// Adding a group takes the last condition and nests it one level deeper
+	// So we need to check if the last condition, when nested, would exceed the limit
+	return currentDepth.value + 1;
+});
+
 const canAddBrackets = computed(
 	() =>
 		conditions.value.length >= 2 &&
 		!conditions.value.every((c) => c.isGroup) &&
-		currentDepth.value < depthLimit
+		depthAfterBracketing.value <= depthLimit
 );
 
 const canAddGroup = computed(
-	() => conditions.value.length >= 2 && currentDepth.value < depthLimit
+	() => conditions.value.length >= 2 && depthAfterGrouping.value <= depthLimit
 );
 
 /**
@@ -82,11 +100,8 @@ const normalizeJoinOperators = (
 		if (index === 0) {
 			// First condition should never have joinOperator
 			delete normalized.joinOperator;
-		} else {
-			// Subsequent conditions should have joinOperator
-			if (!normalized.joinOperator) {
-				normalized.joinOperator = defaultOperator;
-			}
+		} else if (!normalized.joinOperator) {
+			normalized.joinOperator = defaultOperator;
 		}
 
 		// Recursively normalize nested conditions
@@ -169,6 +184,21 @@ const updateJoinOperator = (index: number, value: JoinOperator) => {
 };
 
 const bracketConditions = () => {
+	// Double-check depth limit before proceeding
+	if (depthAfterBracketing.value > depthLimit) {
+		toast({
+			title: translate("rule-builder-warnings-cannot-bracket"),
+			description: translate(
+				"rule-builder-warnings-depth-limit-exceeded",
+				{
+					limit: depthLimit,
+				}
+			),
+			variant: "destructive",
+		});
+		return;
+	}
+
 	// Clone existing conditions with proper IDs
 	const clonedConditions = cloneConditionsWithIds(conditions.value);
 
@@ -187,12 +217,16 @@ const bracketConditions = () => {
 };
 
 const addGroup = () => {
-	if (isAtDepthLimit.value) {
+	// Double-check depth limit before proceeding
+	if (depthAfterGrouping.value > depthLimit) {
 		toast({
 			title: translate("rule-builder-warnings-cannot-add-group"),
-			description: translate("rule-builder-warnings-depth-limit", {
-				limit: depthLimit,
-			}),
+			description: translate(
+				"rule-builder-warnings-depth-limit-exceeded",
+				{
+					limit: depthLimit,
+				}
+			),
 			variant: "destructive",
 		});
 		return;
@@ -304,10 +338,10 @@ const addGroup = () => {
 			</Button>
 
 			<Button
-				v-if="canAddBrackets"
 				type="button"
 				variant="outline"
 				size="sm"
+				:disabled="!canAddBrackets"
 				@click="bracketConditions"
 			>
 				<Brackets class="w-4 h-4 mr-1" />
@@ -315,10 +349,10 @@ const addGroup = () => {
 			</Button>
 
 			<Button
-				v-if="canAddGroup"
 				type="button"
 				variant="outline"
 				size="sm"
+				:disabled="!canAddGroup"
 				@click="addGroup"
 			>
 				<FolderPlus class="w-4 h-4 mr-1" />

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { useFluent } from "fluent-vue";
-import { AlertCircle } from "lucide-vue-next";
 import { computed } from "vue";
 
 import { useRuleBuilderStore } from "@/domain/store";

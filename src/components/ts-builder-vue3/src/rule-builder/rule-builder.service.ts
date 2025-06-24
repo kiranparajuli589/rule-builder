@@ -37,45 +37,6 @@ export default {
 	},
 
 	/**
-	 * Formats conditions into a human-readable expression
-	 */
-	formatReadableRule(conditions?: ConditionDTO[]): string {
-		if (!conditions || conditions.length === 0) return "";
-
-		let result = "";
-
-		for (let i = 0; i < conditions.length; i++) {
-			const condition = conditions[i];
-
-			if (condition.isGroup && condition.conditions) {
-				result += "(";
-				result += this.formatReadableRule(condition.conditions);
-				result += ")";
-			} else {
-				const field = condition.field ?? "";
-				const op = condition.operator || "";
-				const value = condition.value || "";
-
-				// Format based on operator
-				if (op === "starts_with" || op === "ends_with" || op === "~~") {
-					const fnName = op === "~~" ? "contains" : op;
-					result += `${fnName}(${field}, "${value}")`;
-				} else {
-					result += `${field} ${op} "${value}"`;
-				}
-			}
-
-			// Add join operator if not last
-			if (i < conditions.length - 1) {
-				const nextJoin = condition.joinOperator || JoinOperator.AND;
-				result += ` ${nextJoin} `;
-			}
-		}
-
-		return result;
-	},
-
-	/**
 	 * Cleans a rule for API submission by removing UI-only properties
 	 */
 	cleanRuleForExport(rule: RuleDTO): RuleDTO {
@@ -176,7 +137,7 @@ export default {
 			} else {
 				// Subsequent conditions should have joinOperator
 				normalized.joinOperator =
-					condition.joinOperator || JoinOperator.AND;
+					condition.joinOperator ?? JoinOperator.AND;
 			}
 
 			// Recursively normalize nested conditions

@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 
 import {
     RuleDTO,
+    RuleFormatService,
     RuleService,
     RuleValidationService,
     type ValidationError,
@@ -51,7 +52,7 @@ export const useRuleBuilderStore = defineStore("ruleBuilder", {
         readableRule(): string {
             const conditions = this.rule?.create_pattern?.conditions || [];
             if (!conditions.length) return "";
-            return RuleService.formatReadableRule(conditions);
+            return RuleFormatService.formatReadableRule(conditions);
         },
     },
 

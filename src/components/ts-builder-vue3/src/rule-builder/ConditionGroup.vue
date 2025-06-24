@@ -39,6 +39,35 @@ const groupConditions = computed({
 
 const isCollapsed = ref(props.nestingLevel > 2);
 const joinOperators = ConditionService.getJoinOperators();
+const depthLimit = RuleService.DEPTH_LIMIT;
+
+// Calculate the depth of this group's contents
+const currentGroupDepth = computed(() =>
+	RuleService.calculateDepth(groupConditions.value)
+);
+
+// Calculate what the depth would be after bracketing
+const depthAfterBracketing = computed(() => {
+	if (groupConditions.value.length < 2) return currentGroupDepth.value;
+	// Bracketing adds one level of nesting to all current conditions in this group
+	return currentGroupDepth.value + 1;
+});
+
+// Calculate what the depth would be after adding a nested group
+const depthAfterGrouping = computed(() => {
+	if (groupConditions.value.length < 2) return currentGroupDepth.value;
+	// Adding a group takes the last condition and nests it one level deeper
+	return currentGroupDepth.value + 1;
+});
+
+// Check if we're at the absolute depth limit considering our current nesting level
+const absoluteDepthAfterBracketing = computed(
+	() => props.nestingLevel + depthAfterBracketing.value
+);
+
+const absoluteDepthAfterGrouping = computed(
+	() => props.nestingLevel + depthAfterGrouping.value
+);
 
 const groupSummary = computed(() => {
 	const count = groupConditions.value.length || 0;
@@ -67,19 +96,18 @@ const groupSummary = computed(() => {
 	return summary;
 });
 
-const isAtDepthLimit = computed(
-	() => props.nestingLevel >= RuleService.DEPTH_LIMIT
-);
-
+// Check if operations would exceed the absolute depth limit
 const canAddBrackets = computed(
 	() =>
-		!isAtDepthLimit.value &&
 		groupConditions.value.length >= 2 &&
-		!groupConditions.value.every((c) => c.isGroup)
+		!groupConditions.value.every((c) => c.isGroup) &&
+		absoluteDepthAfterBracketing.value <= depthLimit
 );
 
 const canAddNestedGroup = computed(
-	() => !isAtDepthLimit.value && groupConditions.value.length >= 2
+	() =>
+		groupConditions.value.length >= 2 &&
+		absoluteDepthAfterGrouping.value <= depthLimit
 );
 
 /**
@@ -119,15 +147,9 @@ const normalizeJoinOperatorsThisGroupOnly = (
 		if (index === 0) {
 			// First condition should never have joinOperator
 			delete normalized.joinOperator;
-		} else {
-			// Subsequent conditions should have joinOperator
-			if (!normalized.joinOperator) {
-				normalized.joinOperator = defaultOperator;
-			}
+		} else if (!normalized.joinOperator) {
+			normalized.joinOperator = defaultOperator;
 		}
-
-		// DO NOT recursively normalize nested conditions - let them manage their own operators
-		// This is the key fix for the scope issue
 
 		return normalized;
 	});
@@ -202,6 +224,22 @@ const updateJoinOperator = (index: number, value: JoinOperator) => {
 };
 
 const bracketConditions = () => {
+	// Double-check depth limit before proceeding
+	if (absoluteDepthAfterBracketing.value > depthLimit) {
+		toast({
+			title: translate("rule-builder-warnings-cannot-bracket"),
+			description: translate(
+				"rule-builder-warnings-depth-limit-exceeded",
+				{
+					limit: depthLimit,
+					currentLevel: props.nestingLevel,
+				}
+			),
+			variant: "destructive",
+		});
+		return;
+	}
+
 	// Clone existing conditions with proper IDs
 	const clonedConditions = cloneConditionsWithIds(groupConditions.value);
 
@@ -223,6 +261,22 @@ const bracketConditions = () => {
 };
 
 const addNestedGroup = () => {
+	// Double-check depth limit before proceeding
+	if (absoluteDepthAfterGrouping.value > depthLimit) {
+		toast({
+			title: translate("rule-builder-warnings-cannot-add-group"),
+			description: translate(
+				"rule-builder-warnings-depth-limit-exceeded",
+				{
+					limit: depthLimit,
+					currentLevel: props.nestingLevel,
+				}
+			),
+			variant: "destructive",
+		});
+		return;
+	}
+
 	const conditions = groupConditions.value;
 	const lastCondition = conditions[conditions.length - 1];
 

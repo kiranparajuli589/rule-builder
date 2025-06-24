@@ -20,7 +20,6 @@ const emit = defineEmits<{
 	remove: [];
 }>();
 
-// Use defineModel for the condition
 const condition = defineModel<ConditionDTO>({ required: true });
 
 const fields = ConditionService.getFields();
@@ -30,6 +29,7 @@ const operators = ConditionService.getOperators();
 const conditionId = computed(() => {
 	if (!condition.value?.id) {
 		// Generate ID if missing
+		// eslint-disable-next-line vue/no-side-effects-in-computed-properties
 		condition.value = ConditionService.createEmptyCondition();
 	}
 	return condition.value.id;
@@ -207,7 +207,7 @@ const updateValue = (value: string) => {
 			</p>
 
 			<!-- Validation error -->
-			<p v-if="hasError" class="text-xs text-destructive">
+			<p v-if="hasError && error" class="text-xs text-destructive">
 				{{ $t(error) }}
 			</p>
 		</div>

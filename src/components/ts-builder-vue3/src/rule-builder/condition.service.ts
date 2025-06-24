@@ -121,12 +121,7 @@ export default {
 			if (index === 0) {
 				// First condition should never have joinOperator
 				delete normalized.joinOperator;
-			} else {
-				// Subsequent conditions should have joinOperator
-				if (!normalized.joinOperator) {
-					normalized.joinOperator = defaultOperator;
-				}
-			}
+			} else normalized.joinOperator ??= defaultOperator;
 
 			// Recursively normalize nested conditions
 			if (
@@ -136,7 +131,7 @@ export default {
 			) {
 				normalized.conditions = this.normalizeJoinOperators(
 					normalized.conditions,
-					normalized.joinOperator || defaultOperator
+					normalized.joinOperator ?? defaultOperator
 				);
 			}
 
