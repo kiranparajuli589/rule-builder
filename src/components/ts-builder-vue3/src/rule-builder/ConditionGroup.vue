@@ -180,14 +180,7 @@ const addNestedGroup = () => {
 			nestingLevel >= 1 ? 'mb-4' : '',
 		]"
 	>
-		<div class="absolute -left-3 top-4 text-muted-foreground text-lg">
-			(
-		</div>
-		<div class="absolute -right-3 top-4 text-muted-foreground text-lg">
-			)
-		</div>
-
-		<CardHeader class="pb-4">
+		<CardHeader class="py-4">
 			<div class="flex items-center justify-between">
 				<div class="flex items-center gap-2">
 					<Badge variant="secondary">

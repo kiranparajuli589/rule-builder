@@ -46,6 +46,13 @@ export const useRuleBuilderStore = defineStore("ruleBuilder", {
         isValid(): boolean {
             return !this.hasErrors;
         },
+
+        // Add getter for readable rule format
+        readableRule(): string {
+            const conditions = this.rule?.create_pattern?.conditions || [];
+            if (!conditions.length) return "";
+            return RuleService.formatReadableRule(conditions);
+        },
     },
 
     actions: {
@@ -56,9 +63,21 @@ export const useRuleBuilderStore = defineStore("ruleBuilder", {
                 meta?: Record<string, any>;
             } = {}
         ) {
-            this.rule = options.rule
-                ? JSON.parse(JSON.stringify(options.rule))
-                : RuleService.createEmptyRule();
+            if (options.rule) {
+                // Clone and ensure proper structure
+                this.rule = JSON.parse(JSON.stringify(options.rule));
+
+                // Normalize join operators to ensure correct structure
+                if (this.rule?.create_pattern?.conditions) {
+                    this.rule.create_pattern.conditions =
+                        RuleService.normalizeJoinOperators(
+                            this.rule.create_pattern.conditions
+                        );
+                }
+            } else {
+                // Create new rule with proper structure
+                this.rule = RuleService.createEmptyRule();
+            }
 
             this.extraInputs = {
                 type: options.extraInputsType,
@@ -81,39 +100,14 @@ export const useRuleBuilderStore = defineStore("ruleBuilder", {
             this.rule = { ...this.rule, ...updates };
         },
 
-        updateCondition(path: (string | number)[], value: any) {
-            if (!this.rule) return;
-
-            let target: any = this.rule;
-            const keys = [...path];
-            const lastKey = keys.pop();
-
-            // Navigate to parent
-            for (const key of keys) {
-                target = target[key];
-                if (!target) return;
-            }
-
-            // Update value
-            if (lastKey !== undefined) {
-                target[lastKey] = value;
-            }
-        },
-
-        updateExtraInputs(data: Partial<ExtraInputs["data"]>) {
-            this.extraInputs.data = {
-                ...this.extraInputs.data,
-                ...data,
-            };
-        },
-
         validateAndGetRule(): RuleDTO | null {
             if (!this.rule || !this.isValid) return null;
 
-            return {
+            // Clean the rule before returning
+            return RuleService.cleanRuleForExport({
                 ...this.rule,
                 ...(this.extraInputs.data || {}),
-            };
+            });
         },
 
         resetRule() {
