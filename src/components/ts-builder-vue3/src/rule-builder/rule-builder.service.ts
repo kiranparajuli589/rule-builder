@@ -58,13 +58,6 @@ export default {
 	},
 
 	/**
-	 * Deep clones a rule object
-	 */
-	cloneRule(rule: RuleDTO): RuleDTO {
-		return JSON.parse(JSON.stringify(rule));
-	},
-
-	/**
 	 * Optimizes conditions by flattening unnecessary groups
 	 */
 	optimizeConditions(conditions: ConditionDTO[]): ConditionDTO[] {
@@ -87,39 +80,6 @@ export default {
 
 			return condition;
 		});
-	},
-
-	/**
-	 * Validates if a rule structure is valid for nesting operations
-	 */
-	validateStructureForOperation(
-		conditions: ConditionDTO[],
-		operation: "bracket" | "group"
-	): { valid: boolean; message?: string } {
-		const currentDepth = this.calculateDepth(conditions);
-
-		if (currentDepth >= this.DEPTH_LIMIT) {
-			return {
-				valid: false,
-				message: `Cannot perform ${operation} operation: Maximum nesting depth (${this.DEPTH_LIMIT}) reached`,
-			};
-		}
-
-		if (operation === "bracket" && conditions.length < 2) {
-			return {
-				valid: false,
-				message: "Need at least 2 conditions to add brackets",
-			};
-		}
-
-		if (operation === "group" && conditions.length < 2) {
-			return {
-				valid: false,
-				message: "Need at least 2 conditions to create a group",
-			};
-		}
-
-		return { valid: true };
 	},
 
 	/**
@@ -149,5 +109,49 @@ export default {
 
 			return normalized;
 		});
+	},
+
+	/**
+	 * Calculates depth for specific conditions without considering siblings
+	 */
+	calculateConditionDepth(condition: ConditionDTO): number {
+		if (!condition.isGroup || !condition.conditions) return 0;
+		return 1 + this.calculateDepth(condition.conditions);
+	},
+
+	/**
+	 * Simulates the depth after bracketing a specific set of conditions
+	 */
+	simulateBracketingDepth(conditions: ConditionDTO[]): number {
+		if (!conditions || conditions.length === 0) return 0;
+
+		// Find the maximum existing depth among the conditions to be bracketed
+		const maxExistingDepth = Math.max(
+			...conditions.map((c) => this.calculateConditionDepth(c)),
+			0
+		);
+
+		// Bracketing adds one level on top of the existing maximum depth
+		return 1 + maxExistingDepth;
+	},
+
+	/**
+	 * Simulates the depth after creating a group with the last condition
+	 */
+	simulateGroupingDepth(conditions: ConditionDTO[]): number {
+		if (!conditions || conditions.length < 2)
+			return this.calculateDepth(conditions);
+
+		const lastCondition = conditions[conditions.length - 1];
+		const lastConditionDepth = this.calculateConditionDepth(lastCondition);
+
+		// Depth of new group containing the last condition
+		const newGroupDepth = 1 + lastConditionDepth;
+
+		// Depth of remaining conditions
+		const remainingConditions = conditions.slice(0, -1);
+		const remainingDepth = this.calculateDepth(remainingConditions);
+
+		return Math.max(newGroupDepth, remainingDepth);
 	},
 };

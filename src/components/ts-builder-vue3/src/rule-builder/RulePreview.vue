@@ -66,7 +66,7 @@ const structureWarning = computed(() => {
 	<div class="space-y-2">
 		<div class="flex items-center justify-between">
 			<h3 class="text-lg font-semibold">
-				{{ $t("rule-builder.preview-title") }}
+				{{ $t("rule-builder-preview-title") }}
 			</h3>
 			<div class="flex gap-2">
 				<Button
@@ -78,8 +78,8 @@ const structureWarning = computed(() => {
 					<Code2 class="w-4 h-4 mr-1" />
 					{{
 						showJson
-							? $t("rule-builder.preview.show-expression")
-							: $t("rule-builder.preview.show-json")
+							? $t("rule-builder-preview-show-expression")
+							: $t("rule-builder-preview-show-json")
 					}}
 				</Button>
 			</div>

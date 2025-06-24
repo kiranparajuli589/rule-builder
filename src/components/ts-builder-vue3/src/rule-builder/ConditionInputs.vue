@@ -215,9 +215,9 @@ const updateValue = (value: string) => {
 		<!-- Remove button -->
 		<Button
 			v-if="showRemove"
-			class="mt-7"
+			class="border-destructive text-destructive"
 			type="button"
-			variant="ghost"
+			variant="outline"
 			size="icon"
 			@click="emit('remove')"
 		>

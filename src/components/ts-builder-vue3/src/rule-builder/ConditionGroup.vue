@@ -41,26 +41,28 @@ const isCollapsed = ref(props.nestingLevel > 2);
 const joinOperators = ConditionService.getJoinOperators();
 const depthLimit = RuleService.DEPTH_LIMIT;
 
-// Calculate the depth of this group's contents
+// Calculate the depth of this group's contents more precisely
 const currentGroupDepth = computed(() =>
 	RuleService.calculateDepth(groupConditions.value)
 );
 
-// Calculate what the depth would be after bracketing
+// More intelligent bracketing depth calculation
 const depthAfterBracketing = computed(() => {
 	if (groupConditions.value.length < 2) return currentGroupDepth.value;
-	// Bracketing adds one level of nesting to all current conditions in this group
-	return currentGroupDepth.value + 1;
+
+	// Use the simulation method for this group's conditions
+	return RuleService.simulateBracketingDepth(groupConditions.value);
 });
 
-// Calculate what the depth would be after adding a nested group
+// More intelligent nested group depth calculation
 const depthAfterGrouping = computed(() => {
 	if (groupConditions.value.length < 2) return currentGroupDepth.value;
-	// Adding a group takes the last condition and nests it one level deeper
-	return currentGroupDepth.value + 1;
+
+	// Use the simulation method for this group's conditions
+	return RuleService.simulateGroupingDepth(groupConditions.value);
 });
 
-// Check if we're at the absolute depth limit considering our current nesting level
+// Check if operations would exceed the absolute depth limit considering our current nesting level
 const absoluteDepthAfterBracketing = computed(
 	() => props.nestingLevel + depthAfterBracketing.value
 );
@@ -68,6 +70,21 @@ const absoluteDepthAfterBracketing = computed(
 const absoluteDepthAfterGrouping = computed(
 	() => props.nestingLevel + depthAfterGrouping.value
 );
+
+const canAddBrackets = computed(() => {
+	if (groupConditions.value.length < 2) return false;
+	if (groupConditions.value.every((c) => c.isGroup)) return false;
+
+	// Allow bracketing if the absolute resulting depth doesn't exceed limit
+	return absoluteDepthAfterBracketing.value <= depthLimit;
+});
+
+const canAddNestedGroup = computed(() => {
+	if (groupConditions.value.length < 2) return false;
+
+	// Allow nested grouping if the absolute resulting depth doesn't exceed limit
+	return absoluteDepthAfterGrouping.value <= depthLimit;
+});
 
 const groupSummary = computed(() => {
 	const count = groupConditions.value.length || 0;
@@ -95,20 +112,6 @@ const groupSummary = computed(() => {
 
 	return summary;
 });
-
-// Check if operations would exceed the absolute depth limit
-const canAddBrackets = computed(
-	() =>
-		groupConditions.value.length >= 2 &&
-		!groupConditions.value.every((c) => c.isGroup) &&
-		absoluteDepthAfterBracketing.value <= depthLimit
-);
-
-const canAddNestedGroup = computed(
-	() =>
-		groupConditions.value.length >= 2 &&
-		absoluteDepthAfterGrouping.value <= depthLimit
-);
 
 /**
  * Ensures a condition has a valid ID and proper structure
@@ -403,7 +406,7 @@ const addNestedGroup = () => {
 				<!-- Join operator -->
 				<div
 					v-if="index < groupConditions.length - 1"
-					class="flex justify-center my-2"
+					class="flex my-2"
 				>
 					<div class="max-w-24">
 						<Select

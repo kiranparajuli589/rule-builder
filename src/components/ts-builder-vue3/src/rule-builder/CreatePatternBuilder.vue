@@ -30,35 +30,36 @@ const currentDepth = computed(() =>
 	RuleService.calculateDepth(conditions.value)
 );
 
-const isAtDepthLimit = computed(() => currentDepth.value >= depthLimit);
-
-// Simulate what depth would be after bracketing
+// More intelligent depth calculation for bracketing operation
 const depthAfterBracketing = computed(() => {
 	if (conditions.value.length < 2) return currentDepth.value;
 
-	// Bracketing adds one level of nesting to all current conditions
-	return currentDepth.value + 1;
+	// Use the new simulation method
+	return RuleService.simulateBracketingDepth(conditions.value);
 });
 
-// Simulate what depth would be after adding a group
+// More intelligent depth calculation for adding a group
 const depthAfterGrouping = computed(() => {
 	if (conditions.value.length < 2) return currentDepth.value;
 
-	// Adding a group takes the last condition and nests it one level deeper
-	// So we need to check if the last condition, when nested, would exceed the limit
-	return currentDepth.value + 1;
+	// Use the new simulation method
+	return RuleService.simulateGroupingDepth(conditions.value);
 });
 
-const canAddBrackets = computed(
-	() =>
-		conditions.value.length >= 2 &&
-		!conditions.value.every((c) => c.isGroup) &&
-		depthAfterBracketing.value <= depthLimit
-);
+const canAddBrackets = computed(() => {
+	if (conditions.value.length < 2) return false;
+	if (conditions.value.every((c) => c.isGroup)) return false;
 
-const canAddGroup = computed(
-	() => conditions.value.length >= 2 && depthAfterGrouping.value <= depthLimit
-);
+	// Allow bracketing if the resulting depth doesn't exceed limit
+	return depthAfterBracketing.value <= depthLimit;
+});
+
+const canAddGroup = computed(() => {
+	if (conditions.value.length < 2) return false;
+
+	// Allow grouping if the resulting depth doesn't exceed limit
+	return depthAfterGrouping.value <= depthLimit;
+});
 
 /**
  * Ensures a condition has a valid ID and proper structure
@@ -360,13 +361,20 @@ const addGroup = () => {
 			</Button>
 		</div>
 
-		<!-- Depth limit warning -->
-		<Alert v-if="isAtDepthLimit" variant="warning">
+		<!-- Depth limit warning - only show when operations would be blocked -->
+		<Alert
+			v-if="
+				depthAfterBracketing > depthLimit &&
+				depthAfterGrouping > depthLimit
+			"
+			variant="warning"
+		>
 			<AlertCircle class="h-4 w-4" />
 			<AlertDescription>
 				{{
 					$t("rule-builder-warnings-depth-limit", {
 						limit: depthLimit,
+						current: currentDepth,
 					})
 				}}
 			</AlertDescription>
